@@ -206,8 +206,8 @@ export default function AdminUpload() {
       for (const [categoryName, categoryFiles] of Object.entries(filesByCategory)) {
         const tagArray = tags.split(',').map(t => t.trim()).filter(Boolean)
         
-        // Process files in parallel batches of 5
-        const batchSize = 5
+        // Process files in parallel batches of 2 (reduced from 5)
+        const batchSize = 2
         for (let i = 0; i < categoryFiles.length; i += batchSize) {
           const batch = categoryFiles.slice(i, i + batchSize)
           
@@ -257,9 +257,9 @@ export default function AdminUpload() {
           // Count successful uploads in this batch
           totalSuccessful += results.filter(result => result.status === 'fulfilled' && result.value.success).length
           
-          // Small delay between batches to avoid overwhelming the server
+          // Longer delay between batches to prevent crashes
           if (i + batchSize < categoryFiles.length) {
-            await new Promise(resolve => setTimeout(resolve, 500))
+            await new Promise(resolve => setTimeout(resolve, 1500))
           }
         }
       }
