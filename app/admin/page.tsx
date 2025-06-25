@@ -293,8 +293,8 @@ export default function AdminUpload() {
       for (const [categoryName, categoryFiles] of Object.entries(filesByCategory)) {
         const tagArray = tags.split(',').map(t => t.trim()).filter(Boolean)
         
-        // Process files in batches of 10 (LIVING ON THE EDGE! 🔥)
-        const batchSize = 10
+        // Process files in batches of 6 (browser connection limit sweet spot)
+        const batchSize = 6
         for (let i = 0; i < categoryFiles.length; i += batchSize) {
           const batch = categoryFiles.slice(i, i + batchSize)
           
@@ -302,19 +302,27 @@ export default function AdminUpload() {
           const results = await Promise.allSettled(
             batch.map(async ({ file, index: globalIndex }) => {
               try {
-                // Update progress
+                // Update progress immediately when starting
                 setUploadProgress(prev => prev.map((item, idx) => 
-                  idx === globalIndex ? { ...item, status: 'uploading', progress: 25 } : item
+                  idx === globalIndex ? { ...item, status: 'uploading', progress: 10 } : item
                 ))
+                
+                console.log(`Starting upload: ${file.name} (batch index: ${globalIndex})`)
                 
                 const fileName = `${Date.now()}-${globalIndex}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
                 
                 // Upload to Supabase Storage
+                setUploadProgress(prev => prev.map((item, idx) => 
+                  idx === globalIndex ? { ...item, progress: 40 } : item
+                ))
+                
                 const fileUrl = await dbHelpers.uploadFile('collage-elements', fileName, file)
                 
                 setUploadProgress(prev => prev.map((item, idx) => 
                   idx === globalIndex ? { ...item, progress: 75 } : item
                 ))
+                
+                console.log(`Uploaded to storage: ${file.name}`)
                 
                 // Save metadata to database with auto-detected category
                 await dbHelpers.addElement({
@@ -324,6 +332,8 @@ export default function AdminUpload() {
                   file_url: fileUrl,
                   tags: tagArray
                 })
+                
+                console.log(`Saved to database: ${file.name}`)
                 
                 setUploadProgress(prev => prev.map((item, idx) => 
                   idx === globalIndex ? { ...item, status: 'complete', progress: 100 } : item
