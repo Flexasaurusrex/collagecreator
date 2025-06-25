@@ -44,8 +44,8 @@ export default function AdminUpload() {
     
     try {
       // Handle folder drops with safety checks
-      if (items.length > 0 && items[0].webkitGetAsEntry) {
-        const entry = items[0].webkitGetAsEntry()
+      if (items.length > 0) {
+        const entry = items[0].webkitGetAsEntry && items[0].webkitGetAsEntry()
         if (entry && entry.isDirectory) {
           handleFolderDrop(items)
         } else {
