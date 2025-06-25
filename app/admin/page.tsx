@@ -42,11 +42,29 @@ export default function AdminUpload() {
     e.preventDefault()
     const items = Array.from(e.dataTransfer.items)
     
-    // Handle folder drops
-    if (items.length > 0 && items[0].webkitGetAsEntry()) {
-      handleFolderDrop(items)
-    } else {
-      // Handle direct file drops
+    try {
+      // Handle folder drops with safety checks
+      if (items.length > 0 && items[0].webkitGetAsEntry) {
+        const entry = items[0].webkitGetAsEntry()
+        if (entry && entry.isDirectory) {
+          handleFolderDrop(items)
+        } else {
+          // Handle direct file drops
+          const droppedFiles = Array.from(e.dataTransfer.files).filter(file =>
+            file.type.startsWith('image/')
+          )
+          setFiles(prev => [...prev, ...droppedFiles])
+        }
+      } else {
+        // Fallback to file handling
+        const droppedFiles = Array.from(e.dataTransfer.files).filter(file =>
+          file.type.startsWith('image/')
+        )
+        setFiles(prev => [...prev, ...droppedFiles])
+      }
+    } catch (error) {
+      console.error('Error handling drop:', error)
+      // Fallback to basic file handling
       const droppedFiles = Array.from(e.dataTransfer.files).filter(file =>
         file.type.startsWith('image/')
       )
@@ -55,68 +73,132 @@ export default function AdminUpload() {
   }, [])
 
   const handleFolderDrop = async (items: DataTransferItem[]) => {
-    const filesByCategory: { [category: string]: File[] } = {}
-    
-    for (const item of items) {
-      const entry = item.webkitGetAsEntry()
-      if (entry) {
-        if (entry.isDirectory) {
-          // Extract category from folder name
-          const categoryName = entry.name.toLowerCase()
-          const folderFiles = await readDirectory(entry as FileSystemDirectoryEntry)
-          if (folderFiles.length > 0) {
-            filesByCategory[categoryName] = folderFiles
+    try {
+      const filesByCategory: { [category: string]: File[] } = {}
+      let totalFiles = 0
+      const maxFiles = 200 // Safety limit
+      
+      for (const item of items) {
+        if (totalFiles >= maxFiles) {
+          alert(`Safety limit: Processing first ${maxFiles} files only`)
+          break
+        }
+        
+        const entry = item.webkitGetAsEntry()
+        if (entry) {
+          if (entry.isDirectory) {
+            // Extract category from folder name
+            const categoryName = entry.name.toLowerCase()
+            console.log(`Processing folder: ${categoryName}`)
+            
+            try {
+              const folderFiles = await readDirectory(entry as FileSystemDirectoryEntry, maxFiles - totalFiles)
+              if (folderFiles.length > 0) {
+                filesByCategory[categoryName] = folderFiles
+                totalFiles += folderFiles.length
+                console.log(`Found ${folderFiles.length} files in ${categoryName}`)
+              }
+            } catch (folderError) {
+              console.error(`Error reading folder ${categoryName}:`, folderError)
+            }
+          } else if (entry.isFile) {
+            // Try to extract category from file name
+            const file = item.getAsFile()!
+            const detectedCategory = detectCategoryFromFileName(file.name)
+            if (!filesByCategory[detectedCategory]) {
+              filesByCategory[detectedCategory] = []
+            }
+            filesByCategory[detectedCategory].push(file)
+            totalFiles++
           }
-        } else if (entry.isFile) {
-          // Try to extract category from file name
-          const file = item.getAsFile()!
-          const detectedCategory = detectCategoryFromFileName(file.name)
-          if (!filesByCategory[detectedCategory]) {
-            filesByCategory[detectedCategory] = []
-          }
-          filesByCategory[detectedCategory].push(file)
         }
       }
+      
+      // Set files and auto-detect primary category
+      const allFiles = Object.values(filesByCategory).flat()
+      console.log(`Total files found: ${allFiles.length}`)
+      
+      if (allFiles.length > 0) {
+        setFiles(prev => [...prev, ...allFiles])
+        
+        // Auto-set category if all files are from same category
+        const categories = Object.keys(filesByCategory)
+        if (categories.length === 1) {
+          setCategory(categories[0])
+          console.log(`Auto-set category: ${categories[0]}`)
+        }
+      }
+      
+    } catch (error) {
+      console.error('Error in folder drop handling:', error)
+      alert('Error processing folders. Try selecting files directly.')
     }
-    
-    // Set files and auto-detect primary category
-    const allFiles = Object.values(filesByCategory).flat()
-    setFiles(prev => [...prev, ...allFiles])
-    
-    // Auto-set category if all files are from same category
-    const categories = Object.keys(filesByCategory)
-    if (categories.length === 1) {
-      setCategory(categories[0])
-    }
-    
-    console.log('Auto-detected categories:', filesByCategory)
   }
 
-  const readDirectory = (directoryEntry: FileSystemDirectoryEntry): Promise<File[]> => {
+  const readDirectory = (directoryEntry: FileSystemDirectoryEntry, maxFiles: number = 100): Promise<File[]> => {
     return new Promise((resolve) => {
       const files: File[] = []
       const reader = directoryEntry.createReader()
+      let readCount = 0
       
       const readEntries = () => {
-        reader.readEntries(async (entries) => {
-          if (entries.length === 0) {
-            resolve(files)
-            return
-          }
-          
-          for (const entry of entries) {
-            if (entry.isFile) {
-              const file = await new Promise<File>((resolve) => {
-                (entry as FileSystemFileEntry).file(resolve)
-              })
-              if (file.type.startsWith('image/')) {
-                files.push(file)
+        if (files.length >= maxFiles) {
+          console.log(`Reached limit of ${maxFiles} files for folder ${directoryEntry.name}`)
+          resolve(files)
+          return
+        }
+        
+        try {
+          reader.readEntries(async (entries) => {
+            readCount++
+            
+            // Safety check to prevent infinite loops
+            if (readCount > 50) {
+              console.warn('Too many read attempts, stopping')
+              resolve(files)
+              return
+            }
+            
+            if (entries.length === 0) {
+              resolve(files)
+              return
+            }
+            
+            for (const entry of entries) {
+              if (files.length >= maxFiles) break
+              
+              if (entry.isFile) {
+                try {
+                  const file = await new Promise<File>((resolveFile, rejectFile) => {
+                    const timeout = setTimeout(() => rejectFile(new Error('File read timeout')), 5000)
+                    
+                    ;(entry as FileSystemFileEntry).file((f) => {
+                      clearTimeout(timeout)
+                      resolveFile(f)
+                    }, (error) => {
+                      clearTimeout(timeout)
+                      rejectFile(error)
+                    })
+                  })
+                  
+                  if (file.type.startsWith('image/') && file.size < 50 * 1024 * 1024) { // 50MB limit
+                    files.push(file)
+                  }
+                } catch (fileError) {
+                  console.warn(`Skipped file ${entry.name}:`, fileError)
+                }
               }
             }
-          }
-          
-          readEntries() // Continue reading
-        })
+            
+            readEntries() // Continue reading
+          }, (error) => {
+            console.error('Error reading directory entries:', error)
+            resolve(files)
+          })
+        } catch (error) {
+          console.error('Error in readEntries:', error)
+          resolve(files)
+        }
       }
       
       readEntries()
@@ -178,6 +260,11 @@ export default function AdminUpload() {
       return
     }
     
+    if (files.length > 100) {
+      alert('Too many files selected. Please upload in batches of 100 or fewer.')
+      return
+    }
+    
     setUploading(true)
     const progressList: UploadProgress[] = files.map(file => ({
       fileName: file.name,
@@ -206,7 +293,7 @@ export default function AdminUpload() {
       for (const [categoryName, categoryFiles] of Object.entries(filesByCategory)) {
         const tagArray = tags.split(',').map(t => t.trim()).filter(Boolean)
         
-        // Process files in parallel batches of 2 (reduced from 5)
+        // Process files in small batches of 2 to prevent crashes
         const batchSize = 2
         for (let i = 0; i < categoryFiles.length; i += batchSize) {
           const batch = categoryFiles.slice(i, i + batchSize)
