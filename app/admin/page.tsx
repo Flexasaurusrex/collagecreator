@@ -43,7 +43,7 @@ export default function AdminUpload() {
     const items = Array.from(e.dataTransfer.items)
     
     // Handle folder drops
-    if (items.length > 0 && items[0].webkitGetAsEntry) {
+    if (items.length > 0 && items[0].webkitGetAsEntry()) {
       handleFolderDrop(items)
     } else {
       // Handle direct file drops
