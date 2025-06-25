@@ -58,23 +58,59 @@ export default function CollageRandomizer() {
       }
     })
     
-    // Tag and name matches
+    // Enhanced file name and tag matching
     availableElements.forEach(element => {
       const elementWords = [
         ...element.name.toLowerCase().split(/[\s-_]+/),
         ...element.tags.map(tag => tag.toLowerCase())
       ]
       
-      if (words.some(word => 
-        elementWords.some(elementWord => 
-          elementWord.includes(word) || word.includes(elementWord)
-        )
-      )) {
+      // Check for direct matches in file names (more precise)
+      const hasDirectMatch = words.some(word => 
+        elementWords.some(elementWord => {
+          // Exact match or close substring match
+          return elementWord === word || 
+                 (elementWord.length > 3 && elementWord.includes(word)) ||
+                 (word.length > 3 && word.includes(elementWord))
+        })
+      )
+      
+      if (hasDirectMatch) {
         foundCategories.add(element.category)
       }
     })
     
     return Array.from(foundCategories)
+  }
+
+  const getMatchingElements = (promptText: string, categoryElements: Element[]): Element[] => {
+    if (!promptText.trim()) return categoryElements
+    
+    const words = promptText.toLowerCase().split(/[\s,]+/).filter(Boolean)
+    const scoredElements = categoryElements.map(element => {
+      let score = 0
+      const elementWords = [
+        ...element.name.toLowerCase().split(/[\s-_]+/),
+        ...element.tags.map(tag => tag.toLowerCase())
+      ]
+      
+      // Score based on keyword matches in file names
+      words.forEach(word => {
+        elementWords.forEach(elementWord => {
+          if (elementWord === word) score += 10 // Exact match
+          else if (elementWord.includes(word) && word.length > 2) score += 5 // Substring match
+          else if (word.includes(elementWord) && elementWord.length > 2) score += 3 // Reverse substring
+        })
+      })
+      
+      return { element, score }
+    })
+    
+    // Return elements sorted by relevance score, fallback to random if no matches
+    const relevantElements = scoredElements.filter(item => item.score > 0)
+    return relevantElements.length > 0 
+      ? relevantElements.sort((a, b) => b.score - a.score).map(item => item.element)
+      : categoryElements
   }
 
   const generateCollage = async () => {
@@ -92,7 +128,7 @@ export default function CollageRandomizer() {
       const primaryCategories = detectedCategories.length > 0 ? detectedCategories : categories.slice(0, 3)
       const elements: CollageElement[] = []
       
-      // Add 3-6 primary elements from detected categories
+      // Add 3-6 primary elements from detected categories with smart selection
       const primaryCount = Math.floor(Math.random() * 4) + 3
       for (let i = 0; i < primaryCount && primaryCategories.length > 0; i++) {
         const category = primaryCategories[Math.floor(Math.random() * primaryCategories.length)]
@@ -100,7 +136,9 @@ export default function CollageRandomizer() {
         
         if (categoryElements.length === 0) continue
         
-        const element = categoryElements[Math.floor(Math.random() * categoryElements.length)]
+        // Use smart matching to get most relevant files for the prompt
+        const relevantElements = getMatchingElements(prompt, categoryElements)
+        const element = relevantElements[Math.floor(Math.random() * Math.min(relevantElements.length, 5))] // Pick from top 5 most relevant
         
         elements.push({
           ...element,
