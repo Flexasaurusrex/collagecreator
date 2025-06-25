@@ -293,8 +293,8 @@ export default function AdminUpload() {
       for (const [categoryName, categoryFiles] of Object.entries(filesByCategory)) {
         const tagArray = tags.split(',').map(t => t.trim()).filter(Boolean)
         
-        // Process files in small batches of 2 to prevent crashes
-        const batchSize = 2
+        // Process files in batches of 10 (LIVING ON THE EDGE! 🔥)
+        const batchSize = 10
         for (let i = 0; i < categoryFiles.length; i += batchSize) {
           const batch = categoryFiles.slice(i, i + batchSize)
           
@@ -344,9 +344,9 @@ export default function AdminUpload() {
           // Count successful uploads in this batch
           totalSuccessful += results.filter(result => result.status === 'fulfilled' && result.value.success).length
           
-          // Longer delay between batches to prevent crashes
+          // Reasonable delay between batches
           if (i + batchSize < categoryFiles.length) {
-            await new Promise(resolve => setTimeout(resolve, 1500))
+            await new Promise(resolve => setTimeout(resolve, 1000))
           }
         }
       }
