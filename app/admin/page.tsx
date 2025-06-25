@@ -260,8 +260,8 @@ export default function AdminUpload() {
       return
     }
     
-    if (files.length > 200) {
-      alert('Too many files selected. Please upload in batches of 200 or fewer.')
+    if (files.length > 250) {
+      alert('Too many files selected. Please upload in batches of 250 or fewer.')
       return
     }
     
