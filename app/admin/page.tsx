@@ -200,63 +200,6 @@ export default function AdminUpload() {
     console.log('Uploading files by category:', Object.keys(filesByCategory))
     
     try {
-      // Process each category
-      for (const [categoryName, categoryFiles] of Object.entries(filesByCategory)) {
-        const tagArray = tags.split(',').map(t => t.trim()).filter(Boolean)
-        
-        // Process files in parallel batches of 5
-        const batchSize = 5
-        for (let i = 0; i < categoryFiles.length; i += batchSize) {
-          const batch = categoryFiles.slice(i, i + batchSize)
-          
-          // Upload batch in parallel
-          await Promise.allSettled(
-            batch.map(async ({ file, index: globalIndex }) => {
-              try {
-                // Update progress
-                setUploadProgress(prev => prev.map((item, idx) => 
-                  idx === globalIndex ? { ...item, status: 'uploading', progress: 25 } : item
-                ))
-                
-                const fileName = `${Date.now()}-${globalIndex}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-                
-                // Upload to Supabase Storage
-                const fileUrl = await dbHelpers.uploadFile('collage-elements', fileName, file)
-                
-                setUploadProgress(prev => prev.map((item, idx) => 
-                  idx === globalIndex ? { ...item, progress: 75 } : item
-                ))
-                
-                // Save metadata to database with auto-detected category
-                await dbHelpers.addElement({
-                  name: file.name.replace(/\.[^/.]+$/, ''), // Remove file extension
-                  category: categoryName,
-                  file_path: fileName,
-                  file_url: fileUrl,
-                  tags: tagArray
-                })
-                
-                setUploadProgress(prev => prev.map((item, idx) => 
-                  idx === globalIndex ? { ...item, status: 'complete', progress: 100 } : item
-                ))
-                
-              } catch (error) {
-                console.error(`Error uploading ${file.name}:`, error)
-                setUploadProgress(prev => prev.map((item, idx) => 
-                  idx === globalIndex ? { ...item, status: 'error', progress: 0, error: 'Upload failed' } : item
-                ))
-              }
-            })
-          )
-          
-          // Small delay between batches to avoid overwhelming the server
-          if (i + batchSize < categoryFiles.length) {
-            await new Promise(resolve => setTimeout(resolve, 500))
-          }
-        }
-      }
-      
-    try {
       let totalSuccessful = 0
       
       // Process each category
