@@ -40,11 +40,124 @@ export default function AdminUpload() {
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
-    const droppedFiles = Array.from(e.dataTransfer.files).filter(file =>
-      file.type.startsWith('image/')
-    )
-    setFiles(prev => [...prev, ...droppedFiles])
+    const items = Array.from(e.dataTransfer.items)
+    
+    // Handle folder drops
+    if (items.length > 0 && items[0].webkitGetAsEntry) {
+      handleFolderDrop(items)
+    } else {
+      // Handle direct file drops
+      const droppedFiles = Array.from(e.dataTransfer.files).filter(file =>
+        file.type.startsWith('image/')
+      )
+      setFiles(prev => [...prev, ...droppedFiles])
+    }
   }, [])
+
+  const handleFolderDrop = async (items: DataTransferItem[]) => {
+    const filesByCategory: { [category: string]: File[] } = {}
+    
+    for (const item of items) {
+      const entry = item.webkitGetAsEntry()
+      if (entry) {
+        if (entry.isDirectory) {
+          // Extract category from folder name
+          const categoryName = entry.name.toLowerCase()
+          const folderFiles = await readDirectory(entry as FileSystemDirectoryEntry)
+          if (folderFiles.length > 0) {
+            filesByCategory[categoryName] = folderFiles
+          }
+        } else if (entry.isFile) {
+          // Try to extract category from file name
+          const file = item.getAsFile()!
+          const detectedCategory = detectCategoryFromFileName(file.name)
+          if (!filesByCategory[detectedCategory]) {
+            filesByCategory[detectedCategory] = []
+          }
+          filesByCategory[detectedCategory].push(file)
+        }
+      }
+    }
+    
+    // Set files and auto-detect primary category
+    const allFiles = Object.values(filesByCategory).flat()
+    setFiles(prev => [...prev, ...allFiles])
+    
+    // Auto-set category if all files are from same category
+    const categories = Object.keys(filesByCategory)
+    if (categories.length === 1) {
+      setCategory(categories[0])
+    }
+    
+    console.log('Auto-detected categories:', filesByCategory)
+  }
+
+  const readDirectory = (directoryEntry: FileSystemDirectoryEntry): Promise<File[]> => {
+    return new Promise((resolve) => {
+      const files: File[] = []
+      const reader = directoryEntry.createReader()
+      
+      const readEntries = () => {
+        reader.readEntries(async (entries) => {
+          if (entries.length === 0) {
+            resolve(files)
+            return
+          }
+          
+          for (const entry of entries) {
+            if (entry.isFile) {
+              const file = await new Promise<File>((resolve) => {
+                (entry as FileSystemFileEntry).file(resolve)
+              })
+              if (file.type.startsWith('image/')) {
+                files.push(file)
+              }
+            }
+          }
+          
+          readEntries() // Continue reading
+        })
+      }
+      
+      readEntries()
+    })
+  }
+
+  const detectCategoryFromFileName = (fileName: string): string => {
+    const name = fileName.toLowerCase()
+    
+    // Common category patterns
+    const categoryPatterns = {
+      'statues': ['statue', 'sculpture', 'bust', 'monument'],
+      'explosions': ['explosion', 'blast', 'fire', 'bomb', 'nuclear'],
+      'animals': ['animal', 'cat', 'dog', 'tiger', 'lion', 'bird', 'eagle', 'wolf'],
+      'nature': ['tree', 'flower', 'plant', 'mountain', 'ocean', 'forest', 'leaf'],
+      'architecture': ['building', 'house', 'tower', 'bridge', 'church', 'castle'],
+      'people': ['person', 'human', 'face', 'portrait', 'man', 'woman'],
+      'objects': ['object', 'tool', 'machine', 'vehicle', 'furniture'],
+      'abstract': ['abstract', 'pattern', 'texture', 'geometric'],
+      'vintage': ['vintage', 'old', 'antique', 'retro', 'historical'],
+      'space': ['space', 'planet', 'star', 'galaxy', 'cosmic', 'universe']
+    }
+    
+    // Check for category patterns in filename
+    for (const [category, patterns] of Object.entries(categoryPatterns)) {
+      if (patterns.some(pattern => name.includes(pattern))) {
+        return category
+      }
+    }
+    
+    // Try to extract from file path/prefix
+    const parts = name.split(/[-_\s]/)
+    if (parts.length > 1) {
+      const potentialCategory = parts[0]
+      if (potentialCategory.length > 2) {
+        return potentialCategory
+      }
+    }
+    
+    return 'misc' // Default category
+  }
 
   const onFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -60,13 +173,12 @@ export default function AdminUpload() {
   }
 
   const uploadFiles = async () => {
-    if (!category.trim() || files.length === 0) {
-      alert('Please select files and enter a category')
+    if (files.length === 0) {
+      alert('Please select files to upload')
       return
     }
     
     setUploading(true)
-    const tagArray = tags.split(',').map(t => t.trim()).filter(Boolean)
     const progressList: UploadProgress[] = files.map(file => ({
       fileName: file.name,
       progress: 0,
@@ -74,43 +186,138 @@ export default function AdminUpload() {
     }))
     setUploadProgress(progressList)
     
+    // Group files by auto-detected category
+    const filesByCategory: { [category: string]: { file: File; index: number }[] } = {}
+    
+    files.forEach((file, index) => {
+      const detectedCategory = category.trim() || detectCategoryFromFileName(file.name)
+      if (!filesByCategory[detectedCategory]) {
+        filesByCategory[detectedCategory] = []
+      }
+      filesByCategory[detectedCategory].push({ file, index })
+    })
+    
+    console.log('Uploading files by category:', Object.keys(filesByCategory))
+    
     try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i]
+      // Process each category
+      for (const [categoryName, categoryFiles] of Object.entries(filesByCategory)) {
+        const tagArray = tags.split(',').map(t => t.trim()).filter(Boolean)
         
-        // Update progress
-        setUploadProgress(prev => prev.map((item, idx) => 
-          idx === i ? { ...item, status: 'uploading', progress: 25 } : item
-        ))
+        // Process files in parallel batches of 5
+        const batchSize = 5
+        for (let i = 0; i < categoryFiles.length; i += batchSize) {
+          const batch = categoryFiles.slice(i, i + batchSize)
+          
+          // Upload batch in parallel
+          await Promise.allSettled(
+            batch.map(async ({ file, index: globalIndex }) => {
+              try {
+                // Update progress
+                setUploadProgress(prev => prev.map((item, idx) => 
+                  idx === globalIndex ? { ...item, status: 'uploading', progress: 25 } : item
+                ))
+                
+                const fileName = `${Date.now()}-${globalIndex}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
+                
+                // Upload to Supabase Storage
+                const fileUrl = await dbHelpers.uploadFile('collage-elements', fileName, file)
+                
+                setUploadProgress(prev => prev.map((item, idx) => 
+                  idx === globalIndex ? { ...item, progress: 75 } : item
+                ))
+                
+                // Save metadata to database with auto-detected category
+                await dbHelpers.addElement({
+                  name: file.name.replace(/\.[^/.]+$/, ''), // Remove file extension
+                  category: categoryName,
+                  file_path: fileName,
+                  file_url: fileUrl,
+                  tags: tagArray
+                })
+                
+                setUploadProgress(prev => prev.map((item, idx) => 
+                  idx === globalIndex ? { ...item, status: 'complete', progress: 100 } : item
+                ))
+                
+              } catch (error) {
+                console.error(`Error uploading ${file.name}:`, error)
+                setUploadProgress(prev => prev.map((item, idx) => 
+                  idx === globalIndex ? { ...item, status: 'error', progress: 0, error: 'Upload failed' } : item
+                ))
+              }
+            })
+          )
+          
+          // Small delay between batches to avoid overwhelming the server
+          if (i + batchSize < categoryFiles.length) {
+            await new Promise(resolve => setTimeout(resolve, 500))
+          }
+        }
+      }
+      
+    try {
+      let totalSuccessful = 0
+      
+      // Process each category
+      for (const [categoryName, categoryFiles] of Object.entries(filesByCategory)) {
+        const tagArray = tags.split(',').map(t => t.trim()).filter(Boolean)
         
-        try {
-          const fileName = `${Date.now()}-${i}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
+        // Process files in parallel batches of 5
+        const batchSize = 5
+        for (let i = 0; i < categoryFiles.length; i += batchSize) {
+          const batch = categoryFiles.slice(i, i + batchSize)
           
-          // Upload to Supabase Storage
-          const fileUrl = await dbHelpers.uploadFile('collage-elements', fileName, file)
+          // Upload batch in parallel
+          const results = await Promise.allSettled(
+            batch.map(async ({ file, index: globalIndex }) => {
+              try {
+                // Update progress
+                setUploadProgress(prev => prev.map((item, idx) => 
+                  idx === globalIndex ? { ...item, status: 'uploading', progress: 25 } : item
+                ))
+                
+                const fileName = `${Date.now()}-${globalIndex}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
+                
+                // Upload to Supabase Storage
+                const fileUrl = await dbHelpers.uploadFile('collage-elements', fileName, file)
+                
+                setUploadProgress(prev => prev.map((item, idx) => 
+                  idx === globalIndex ? { ...item, progress: 75 } : item
+                ))
+                
+                // Save metadata to database with auto-detected category
+                await dbHelpers.addElement({
+                  name: file.name.replace(/\.[^/.]+$/, ''), // Remove file extension
+                  category: categoryName,
+                  file_path: fileName,
+                  file_url: fileUrl,
+                  tags: tagArray
+                })
+                
+                setUploadProgress(prev => prev.map((item, idx) => 
+                  idx === globalIndex ? { ...item, status: 'complete', progress: 100 } : item
+                ))
+                
+                return { success: true, file: file.name }
+                
+              } catch (error) {
+                console.error(`Error uploading ${file.name}:`, error)
+                setUploadProgress(prev => prev.map((item, idx) => 
+                  idx === globalIndex ? { ...item, status: 'error', progress: 0, error: 'Upload failed' } : item
+                ))
+                return { success: false, file: file.name, error }
+              }
+            })
+          )
           
-          setUploadProgress(prev => prev.map((item, idx) => 
-            idx === i ? { ...item, progress: 75 } : item
-          ))
+          // Count successful uploads in this batch
+          totalSuccessful += results.filter(result => result.status === 'fulfilled' && result.value.success).length
           
-          // Save metadata to database
-          await dbHelpers.addElement({
-            name: file.name.replace(/\.[^/.]+$/, ''), // Remove file extension
-            category: category.trim(),
-            file_path: fileName,
-            file_url: fileUrl,
-            tags: tagArray
-          })
-          
-          setUploadProgress(prev => prev.map((item, idx) => 
-            idx === i ? { ...item, status: 'complete', progress: 100 } : item
-          ))
-          
-        } catch (error) {
-          console.error(`Error uploading ${file.name}:`, error)
-          setUploadProgress(prev => prev.map((item, idx) => 
-            idx === i ? { ...item, status: 'error', progress: 0, error: 'Upload failed' } : item
-          ))
+          // Small delay between batches to avoid overwhelming the server
+          if (i + batchSize < categoryFiles.length) {
+            await new Promise(resolve => setTimeout(resolve, 500))
+          }
         }
       }
       
@@ -123,7 +330,7 @@ export default function AdminUpload() {
       setCategory('')
       setTags('')
       
-      alert(`Upload complete! Successfully uploaded ${uploadProgress.filter(p => p.status === 'complete').length} files.`)
+      alert(`Upload complete! Successfully uploaded ${totalSuccessful} of ${files.length} files.`)
       
     } catch (error) {
       console.error('Error in upload process:', error)
@@ -205,8 +412,12 @@ export default function AdminUpload() {
                 onClick={() => document.getElementById('file-input')?.click()}
               >
                 <Upload className="mx-auto mb-4 text-gray-400" size={48} />
-                <p className="text-lg font-medium mb-2">Drop images here or click to browse</p>
-                <p className="text-gray-500">Supports: JPG, PNG, GIF, WebP</p>
+                <p className="text-lg font-medium mb-2">Drop entire folders or images here</p>
+                <p className="text-gray-500">Supports: Folders, JPG, PNG, GIF, WebP</p>
+                <p className="text-xs text-gray-400 mt-2">
+                  📁 Folder names become categories automatically<br/>
+                  🏷️ File names are analyzed for smart categorization
+                </p>
                 <input
                   id="file-input"
                   type="file"
@@ -246,11 +457,11 @@ export default function AdminUpload() {
                 {/* Upload Form */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div>
-                    <label className="form-label">Category</label>
+                    <label className="form-label">Category (Optional - Auto-detected)</label>
                     <input
                       value={category}
                       onChange={(e) => setCategory(e.target.value)}
-                      placeholder="e.g., statues, explosions, nature"
+                      placeholder="Leave blank for auto-detection"
                       className="form-input"
                       list="existing-categories"
                     />
@@ -259,6 +470,9 @@ export default function AdminUpload() {
                         <option key={cat} value={cat} />
                       ))}
                     </datalist>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Categories auto-detected from folder names or file patterns
+                    </p>
                   </div>
                   <div>
                     <label className="form-label">Tags (comma separated)</label>
@@ -273,7 +487,7 @@ export default function AdminUpload() {
                 
                 <button
                   onClick={uploadFiles}
-                  disabled={uploading || !category.trim()}
+                  disabled={uploading || files.length === 0}
                   className="w-full btn-primary p-3 text-lg disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {uploading ? (
@@ -284,7 +498,7 @@ export default function AdminUpload() {
                   ) : (
                     <>
                       <Upload size={20} />
-                      Upload {files.length} Files
+                      Auto-Upload {files.length} Files
                     </>
                   )}
                 </button>
