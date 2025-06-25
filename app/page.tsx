@@ -35,7 +35,7 @@ export default function CollageRandomizer() {
       const elements = await dbHelpers.getAllElements()
       setAvailableElements(elements)
       
-      const uniqueCategories = [...new Set(elements.map(el => el.category))]
+      const uniqueCategories = Array.from(new Set(elements.map(el => el.category)))
       setCategories(uniqueCategories)
     } catch (error) {
       console.error('Error loading elements:', error)
