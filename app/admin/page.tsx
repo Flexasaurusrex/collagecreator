@@ -150,7 +150,7 @@ export default function AdminUpload() {
   }
 
   const getUniqueCategories = () => {
-    return [...new Set(existingElements.map(el => el.category))].sort()
+    return Array.from(new Set(existingElements.map(el => el.category))).sort()
   }
 
   return (
