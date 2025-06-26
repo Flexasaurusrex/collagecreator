@@ -151,7 +151,6 @@ export default function CollageMaker() {
 
     const newCollageElement: CollageElement = {
       id: `collage-${Date.now()}-${Math.random()}`,
-      elementId: element.id,
       name: element.name,
       url: (element as any).url || (element as any).image || (element as any).file_path || '',
       x: Math.max(50, Math.min(randomX, canvasRect.width - 100)),
@@ -312,7 +311,6 @@ export default function CollageMaker() {
       
       const newElements: CollageElement[] = selectedElements.map((element, index) => ({
         id: `inspiration-${Date.now()}-${index}`,
-        elementId: element.id,
         name: element.name,
         url: (element as any).url || (element as any).image || (element as any).file_path || '',
         x: Math.random() * (canvasRect.width - 150),
