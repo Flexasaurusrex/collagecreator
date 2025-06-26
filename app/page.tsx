@@ -38,6 +38,24 @@ export default function CollageCreator() {
     })
   }, [selectedElementId, selectedElement, collageElements.length])
 
+  // Click outside canvas to deselect
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      // Check if click is outside the canvas area
+      if (canvasRef.current && !canvasRef.current.contains(e.target as Node)) {
+        // Also check if click is not in the left panel (so editing tools don't deselect)
+        const leftPanel = document.querySelector('.w-full.lg\\:w-1\\/3') as HTMLElement
+        if (!leftPanel?.contains(e.target as Node)) {
+          console.log('🎯 Clicked outside canvas - deselecting')
+          setSelectedElementId(null)
+        }
+      }
+    }
+
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [])
+
   useEffect(() => {
     loadElements()
   }, [])
@@ -292,11 +310,14 @@ export default function CollageCreator() {
   }
 
   const updateElement = (elementToUpdate: CollageElement, updates: Partial<CollageElement>) => {
-    setCollageElements(prev => prev.map(el => 
-      (el.id === elementToUpdate.id && el.x === elementToUpdate.x && el.y === elementToUpdate.y) 
-        ? { ...el, ...updates }
-        : el
-    ))
+    // Use requestAnimationFrame for smooth updates
+    requestAnimationFrame(() => {
+      setCollageElements(prev => prev.map(el => 
+        (el.id === elementToUpdate.id && el.x === elementToUpdate.x && el.y === elementToUpdate.y) 
+          ? { ...el, ...updates }
+          : el
+      ))
+    })
   }
 
   const handleElementMouseDown = (e: React.MouseEvent, element: CollageElement) => {
@@ -330,18 +351,25 @@ export default function CollageCreator() {
 
   const handleCanvasMouseMove = (e: React.MouseEvent) => {
     if (draggedCanvasElement && canvasRef.current) {
-      const rect = canvasRef.current.getBoundingClientRect()
-      const newX = Math.max(0, Math.min(95, ((e.clientX - rect.left - dragOffset.x) / rect.width) * 100))
-      const newY = Math.max(0, Math.min(95, ((e.clientY - rect.top - dragOffset.y) / rect.height) * 100))
-      
-      updateElement(draggedCanvasElement, { x: newX, y: newY })
-      setDraggedCanvasElement({ ...draggedCanvasElement, x: newX, y: newY })
+      // Use requestAnimationFrame for smooth dragging
+      requestAnimationFrame(() => {
+        const rect = canvasRef.current?.getBoundingClientRect()
+        if (rect) {
+          const newX = Math.max(0, Math.min(95, ((e.clientX - rect.left - dragOffset.x) / rect.width) * 100))
+          const newY = Math.max(0, Math.min(95, ((e.clientY - rect.top - dragOffset.y) / rect.height) * 100))
+          
+          updateElement(draggedCanvasElement, { x: newX, y: newY })
+          setDraggedCanvasElement({ ...draggedCanvasElement, x: newX, y: newY })
+        }
+      })
     } else if (isDragging && zoom > 1) {
-      // Pan canvas when zoomed
-      setPan(prev => ({
-        x: prev.x + e.movementX,
-        y: prev.y + e.movementY
-      }))
+      // Pan canvas when zoomed - also use requestAnimationFrame
+      requestAnimationFrame(() => {
+        setPan(prev => ({
+          x: prev.x + e.movementX,
+          y: prev.y + e.movementY
+        }))
+      })
     }
   }
 
@@ -579,7 +607,12 @@ export default function CollageCreator() {
                     step="0.1"
                     value={selectedElement.scale}
                     onChange={(e) => updateElement(selectedElement, { scale: parseFloat(e.target.value) })}
-                    className="w-full"
+                    onInput={(e) => {
+                      // Immediate visual feedback without triggering full update
+                      const target = e.target as HTMLInputElement
+                      updateElement(selectedElement, { scale: parseFloat(target.value) })
+                    }}
+                    className="w-full accent-yellow-400"
                   />
                   <div className="text-xs text-gray-500">{selectedElement.scale.toFixed(1)}x</div>
                 </div>
@@ -593,13 +626,17 @@ export default function CollageCreator() {
                     step="5"
                     value={selectedElement.rotation}
                     onChange={(e) => updateElement(selectedElement, { rotation: parseInt(e.target.value) })}
-                    className="w-full"
+                    onInput={(e) => {
+                      const target = e.target as HTMLInputElement
+                      updateElement(selectedElement, { rotation: parseInt(target.value) })
+                    }}
+                    className="w-full accent-yellow-400"
                   />
                   <div className="flex justify-between items-center">
                     <div className="text-xs text-gray-500">{selectedElement.rotation}°</div>
                     <button
                       onClick={() => updateElement(selectedElement, { rotation: 0 })}
-                      className="bg-gray-700 hover:bg-gray-600 px-2 py-1 text-xs"
+                      className="bg-gray-700 hover:bg-gray-600 px-2 py-1 text-xs transition-colors duration-150"
                     >
                       RESET
                     </button>
@@ -615,7 +652,11 @@ export default function CollageCreator() {
                     step="0.05"
                     value={selectedElement.opacity}
                     onChange={(e) => updateElement(selectedElement, { opacity: parseFloat(e.target.value) })}
-                    className="w-full"
+                    onInput={(e) => {
+                      const target = e.target as HTMLInputElement
+                      updateElement(selectedElement, { opacity: parseFloat(target.value) })
+                    }}
+                    className="w-full accent-yellow-400"
                   />
                   <div className="text-xs text-gray-500">{Math.round(selectedElement.opacity * 100)}%</div>
                 </div>
@@ -775,8 +816,8 @@ export default function CollageCreator() {
           <div className="text-center space-y-1">
             <p className="font-bold text-gray-400">{availableElements.length.toLocaleString()} ELEMENTS • {collageElements.length} ON CANVAS</p>
             <p className="text-gray-600">Generate inspiration, then create your masterpiece</p>
-            <p className="text-yellow-400 font-semibold">💡 SINGLE-CLICK elements to select & edit • DOUBLE-CLICK to delete</p>
-            <p className="text-gray-700">Check browser console for click debugging info</p>
+            <p className="text-yellow-400 font-semibold">💡 CLICK elements to select • CLICK OUTSIDE to deselect</p>
+            <p className="text-gray-700">DOUBLE-CLICK to delete • GPU optimized for smooth performance</p>
           </div>
         </div>
       </div>
@@ -822,9 +863,19 @@ export default function CollageCreator() {
               ref={canvasRef}
               className="collage-canvas bg-white relative w-full h-full"
               style={{
-                transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
+                transform: `scale(${zoom}) translate3d(${pan.x / zoom}px, ${pan.y / zoom}px, 0)`,
                 transformOrigin: 'center',
-                transition: isDragging ? 'none' : 'transform 0.3s ease-out'
+                transition: isDragging ? 'none' : 'transform 0.2s ease-out',
+                willChange: isDragging || zoom !== 1 ? 'transform' : 'auto',
+                backfaceVisibility: 'hidden',
+                perspective: 1000
+              }}
+              onClick={(e) => {
+                // Only deselect if clicking directly on canvas background (not on elements)
+                if (e.target === canvasRef.current) {
+                  console.log('🎯 Clicked canvas background - deselecting')
+                  setSelectedElementId(null)
+                }
               }}
             >
               {collageElements.map((element, index) => {
@@ -834,18 +885,21 @@ export default function CollageCreator() {
                 return (
                   <div
                     key={elementId}
-                    className={`collage-element absolute select-none transition-all duration-200 ${
+                    className={`collage-element absolute select-none transition-all duration-150 ease-out ${
                       isSelected ? 'ring-4 ring-yellow-400 ring-offset-4 ring-offset-white shadow-2xl' : 'hover:ring-2 hover:ring-blue-400 hover:ring-offset-2 hover:ring-offset-white'
                     } ${draggedCanvasElement === element ? 'opacity-90 scale-110 z-50' : ''}`}
                     style={{
                       left: `${element.x}%`,
                       top: `${element.y}%`,
-                      transform: `rotate(${element.rotation}deg) scale(${element.scale})`,
+                      transform: `translate3d(0, 0, 0) rotate(${element.rotation}deg) scale(${element.scale})`,
                       opacity: draggedCanvasElement === element ? 0.9 : element.opacity,
                       zIndex: draggedCanvasElement === element ? 999 : element.zIndex,
                       transformOrigin: 'center',
                       cursor: isSelected ? 'grab' : 'pointer',
-                      pointerEvents: 'auto' // Ensure elements are clickable
+                      pointerEvents: 'auto',
+                      willChange: draggedCanvasElement === element ? 'transform' : 'auto',
+                      backfaceVisibility: 'hidden', // Optimize for 3D transforms
+                      perspective: 1000 // Enable 3D context
                     }}
                     onMouseDown={(e) => handleElementMouseDown(e, element)}
                     onClick={(e) => {
@@ -869,8 +923,13 @@ export default function CollageCreator() {
                       src={element.file_url}
                       alt={element.name}
                       className="max-w-48 max-h-48 lg:max-w-64 lg:max-h-64 object-contain drop-shadow-lg"
-                      loading="eager"
+                      loading="lazy"
                       crossOrigin="anonymous"
+                      style={{
+                        imageRendering: 'high-quality',
+                        transform: 'translate3d(0, 0, 0)', // Hardware acceleration
+                        backfaceVisibility: 'hidden'
+                      }}
                     />
                     {element.primary && (
                       <div className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-r from-green-500 to-blue-500 rounded-full shadow-lg"></div>
