@@ -640,4 +640,4 @@ export default function CollageCreator() {
       </div>
     </div>
   )
-}'
+}
