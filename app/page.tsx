@@ -12,7 +12,7 @@ const COLLAGE_STYLES = {
     name: "URBAN DREAMS",
     icon: Globe,
     description: "City life and human stories",
-    categories: ['architecture', 'people', 'vehicles', 'technology', 'objects'],
+    categories: ['architecture', 'people', 'vehicles', 'technology', 'objects'] as string[],
     sceneType: 'urban',
     elementCount: { min: 12, max: 18 },
     color: 'from-blue-600 to-purple-600'
@@ -21,7 +21,7 @@ const COLLAGE_STYLES = {
     name: "WILD ESCAPE", 
     icon: Sparkles,
     description: "Natural world and adventure",
-    categories: ['nature', 'animals', 'sky', 'landscapes', 'vehicles'],
+    categories: ['nature', 'animals', 'sky', 'landscapes', 'vehicles'] as string[],
     sceneType: 'natural',
     elementCount: { min: 10, max: 16 },
     color: 'from-green-600 to-blue-600'
@@ -30,7 +30,7 @@ const COLLAGE_STYLES = {
     name: "RETRO VIBES",
     icon: Zap,
     description: "Vintage nostalgia and memories", 
-    categories: ['vintage', 'vehicles', 'people', 'objects', 'architecture'],
+    categories: ['vintage', 'vehicles', 'people', 'objects', 'architecture'] as string[],
     sceneType: 'nostalgic',
     elementCount: { min: 14, max: 20 },
     color: 'from-orange-600 to-red-600'
@@ -39,7 +39,7 @@ const COLLAGE_STYLES = {
     name: "COSMIC SURREAL",
     icon: Rocket,
     description: "Dreamlike impossible worlds",
-    categories: ['space', 'abstract', 'monuments', 'explosions', 'nature'],
+    categories: ['space', 'abstract', 'monuments', 'explosions', 'nature'] as string[],
     sceneType: 'surreal',
     elementCount: { min: 8, max: 14 },
     color: 'from-purple-600 to-pink-600'
@@ -48,7 +48,7 @@ const COLLAGE_STYLES = {
     name: "PURE CHAOS",
     icon: Palette,
     description: "Everything everywhere all at once",
-    categories: [], // Will use all available categories
+    categories: [] as string[], // Will use all available categories
     sceneType: 'maximalist',
     elementCount: { min: 20, max: 30 },
     color: 'from-red-600 to-yellow-600'
