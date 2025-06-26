@@ -477,16 +477,7 @@ export default function CollageMaker() {
           </div>
         </div>
 
-  // Canvas click to deselect
-  const handleCanvasClick = useCallback((e: React.MouseEvent) => {
-    // Only deselect if clicking on empty canvas (not on an element)
-    if (e.target === e.currentTarget) {
-      setSelectedElement(null)
-      console.log('👆 Clicked canvas, deselected element')
-    }
-  }, [])
-
-  // Canvas Area - More Balanced */}
+        {/* Canvas Area - More Balanced */}
         <div className="flex-1 p-4">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-full">
             <div
@@ -497,7 +488,6 @@ export default function CollageMaker() {
               onMouseLeave={handleMouseUp}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
-              onClick={handleCanvasClick}
             >
               {/* Canvas Content */}
               {collageElements.map((element) => (
