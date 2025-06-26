@@ -18,7 +18,8 @@ export default function CollageCreator() {
   const [inspirationMode, setInspirationMode] = useState<'minimal' | 'mid' | 'high'>('mid')
   const [isMobile, setIsMobile] = useState(false)
   const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set())
-  const [visibleElementsCount, setVisibleElementsCount] = useState(isMobile ? 12 : 20)
+  const [visibleElementsCount, setVisibleElementsCount] = useState(30) // Start with 30
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
@@ -69,7 +70,7 @@ export default function CollageCreator() {
     const checkMobile = () => {
       const mobile = window.innerWidth < 1024
       setIsMobile(mobile)
-      setVisibleElementsCount(mobile ? 12 : 20) // Fewer on mobile for better performance
+      setVisibleElementsCount(mobile ? 20 : 30) // Optimize for mobile
     }
     
     checkMobile()
@@ -93,17 +94,161 @@ export default function CollageCreator() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedElement])
 
+  // Lazy Image Component with Intersection Observer
+  const LazyImage = ({ element, className, onClick, onLoad, onError }: {
+    element: Element
+    className: string
+    onClick: () => void
+    onLoad?: () => void
+    onError?: () => void
+  }) => {
+    const [imageLoaded, setImageLoaded] = useState(false)
+    const [imageError, setImageError] = useState(false)
+    const [inView, setInView] = useState(false)
+    const imgRef = useRef<HTMLImageElement>(null)
+
+    useEffect(() => {
+      const currentImg = imgRef.current
+      if (!currentImg) return
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting && !inView) {
+              setInView(true)
+            }
+          })
+        },
+        { 
+          threshold: 0.1,
+          rootMargin: '50px' // Start loading 50px before entering viewport
+        }
+      )
+
+      observer.observe(currentImg)
+      return () => observer.disconnect()
+    }, [inView])
+
+    const handleLoad = () => {
+      setImageLoaded(true)
+      onLoad?.()
+    }
+
+    const handleError = () => {
+      setImageError(true)
+      onError?.()
+      console.warn(`⚠️ Failed to load: ${element.name}`)
+    }
+
+    return (
+      <div
+        ref={imgRef}
+        className={`${className} bg-gray-800 flex items-center justify-center relative overflow-hidden group`}
+        onClick={onClick}
+        title={`${element.name} - ${isMobile ? 'Tap' : 'Click'} to add${!isMobile ? ' or drag to canvas' : ''}`}
+      >
+        {inView && !imageError ? (
+          <img
+            src={element.file_url}
+            alt={element.name}
+            className={`w-full h-full object-contain transition-all duration-300 ${
+              imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+            } group-hover:opacity-80 group-hover:scale-105`}
+            onLoad={handleLoad}
+            onError={handleError}
+            loading="lazy"
+            decoding="async"
+            // Remove crossOrigin for better mobile compatibility
+            style={{
+              imageRendering: 'high-quality',
+              transform: 'translateZ(0)', // GPU acceleration
+              backfaceVisibility: 'hidden'
+            }}
+          />
+        ) : null}
+        
+        {!imageLoaded && inView && !imageError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-700">
+            <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+          </div>
+        )}
+        
+        {!inView && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
+            <div className="w-6 h-6 bg-gray-600 rounded animate-pulse"></div>
+          </div>
+        )}
+        
+        {imageError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-red-900/20 border border-red-500">
+            <div className="text-center">
+              <div className="text-xs text-red-400 mb-1">Failed</div>
+              <div className="w-4 h-4 bg-red-500 rounded mx-auto"></div>
+            </div>
+          </div>
+        )}
+        
+        {/* Loading placeholder for elements not in view */}
+        {!inView && !imageError && (
+          <div className="absolute inset-0 bg-gray-800 flex items-center justify-center">
+            <div className="text-xs text-gray-500">IMG</div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   const loadElements = async () => {
     try {
       const elements = await dbHelpers.getAllElements()
-      setAvailableElements(elements)
       
-      const uniqueCategories = Array.from(new Set(elements.map(el => el.category))).sort()
+      // Filter out problematic elements that might appear as dots
+      const filteredElements = elements.filter(el => {
+        const name = el.name.toLowerCase()
+        const filename = el.filename?.toLowerCase() || ''
+        
+        // Exclude elements that might appear as dots
+        const problematicKeywords = [
+          'dot', 'point', 'circle', 'icon', 'button', 'ui', 'cursor', 'arrow',
+          'bullet', 'marker', 'pin', 'badge', 'tag', 'logo', 'social', 'star',
+          'rating', 'check', 'cross', 'plus', 'minus', 'decoration', 'accent'
+        ]
+        
+        const hasProblematicName = problematicKeywords.some(keyword => 
+          name.includes(keyword) || filename.includes(keyword)
+        )
+        
+        return !hasProblematicName
+      })
+      
+      console.log(`🎯 Loaded ${filteredElements.length} elements (filtered out ${elements.length - filteredElements.length} potential dots)`)
+      
+      setAvailableElements(filteredElements)
+      
+      const uniqueCategories = Array.from(new Set(filteredElements.map(el => el.category))).sort()
       setCategories(uniqueCategories)
     } catch (error) {
       console.error('Error loading elements:', error)
     }
   }
+
+  // Progressive loading function with smoother UX
+  const loadMoreElements = async () => {
+    setIsLoadingMore(true)
+    
+    // Simulate network delay for better UX feedback
+    await new Promise(resolve => setTimeout(resolve, 300))
+    
+    const increment = isMobile ? 15 : 25
+    setVisibleElementsCount(prev => prev + increment)
+    setIsLoadingMore(false)
+  }
+
+  // Reset visible count when category changes
+  useEffect(() => {
+    setVisibleElementsCount(isMobile ? 20 : 30)
+    setLoadedImages(new Set()) // Clear cache when changing categories
+  }, [selectedCategory, isMobile])
 
   // PERFECTED collage generation logic (based on Wild Escape success)
   const getFoundationalPlacement = (role: 'sky' | 'ground' | 'midground' | 'foreground') => {
@@ -186,31 +331,10 @@ export default function CollageCreator() {
     try {
       console.log('🎨 Generating artistic inspiration...')
       
-      // Filter out very small elements that would appear as dots
-      const filteredElements = availableElements.filter(el => {
-        const name = el.name.toLowerCase()
-        // Exclude common UI/decorative elements that might appear as dots
-        const excludeKeywords = [
-          'dot', 'point', 'circle', 'icon', 'button', 'ui', 'decoration', 'bullet', 'marker',
-          'cursor', 'arrow', 'pointer', 'symbol', 'badge', 'tag', 'chip', 'pin', 'thumb',
-          'logo', 'brand', 'social', 'like', 'heart', 'star', 'rating', 'check', 'cross',
-          'plus', 'minus', 'close', 'x', 'tick', 'accent', 'divider', 'separator'
-        ]
-        return !excludeKeywords.some(keyword => name.includes(keyword))
-      })
-      
-      if (filteredElements.length === 0) {
-        console.log('⚠️ All elements filtered out, using original list')
-        // Fallback to original elements if all are filtered
-      }
-      
-      const workingElements = filteredElements.length > 0 ? filteredElements : availableElements
-      console.log(`🔍 Working with ${workingElements.length} elements (filtered out potential dots)`)
-      
       const elements: CollageElement[] = []
       
       // SKY FOUNDATION - 1-2 massive elements that FILL the top
-      const skyElements = workingElements.filter(el => identifyElementRole(el) === 'sky')
+      const skyElements = availableElements.filter(el => identifyElementRole(el) === 'sky')
       if (skyElements.length > 0) {
         const skyCount = Math.random() > 0.7 ? 2 : 1 // Usually 1, sometimes 2
         for (let i = 0; i < skyCount; i++) {
@@ -226,7 +350,7 @@ export default function CollageCreator() {
         console.log(`🌌 Placed ${skyCount} MASSIVE sky foundation(s) - Z-INDEX: 1-4 (SKY LAYER)`)
       } else {
         // Fallback: use any element as sky if no sky elements available
-        const fallbackElement = workingElements[Math.floor(Math.random() * workingElements.length)]
+        const fallbackElement = availableElements[Math.floor(Math.random() * availableElements.length)]
         const placement = getFoundationalPlacement('sky')
         elements.push({
           ...fallbackElement,
@@ -237,7 +361,7 @@ export default function CollageCreator() {
       }
       
       // GROUND FOUNDATION - 1-2 massive elements that FILL the bottom  
-      const groundElements = workingElements.filter(el => identifyElementRole(el) === 'ground')
+      const groundElements = availableElements.filter(el => identifyElementRole(el) === 'ground')
       if (groundElements.length > 0) {
         const groundCount = Math.random() > 0.5 ? 2 : 1 // Usually 1-2
         for (let i = 0; i < groundCount; i++) {
@@ -253,7 +377,7 @@ export default function CollageCreator() {
         console.log(`🏗️ Placed ${groundCount} MASSIVE ground foundation(s) - Z-INDEX: 10-15 (GROUND LAYER)`)
       } else {
         // Fallback: use any element as ground if no ground elements available
-        const fallbackElement = workingElements[Math.floor(Math.random() * workingElements.length)]
+        const fallbackElement = availableElements[Math.floor(Math.random() * availableElements.length)]
         const placement = getFoundationalPlacement('ground')
         elements.push({
           ...fallbackElement,
@@ -264,7 +388,7 @@ export default function CollageCreator() {
       }
       
       // MIDGROUND LAYER - varies by mode
-      const midgroundElements = workingElements.filter(el => identifyElementRole(el) === 'midground')
+      const midgroundElements = availableElements.filter(el => identifyElementRole(el) === 'midground')
       if (midgroundElements.length > 0 && (inspirationMode === 'mid' || inspirationMode === 'high')) {
         let midCount: number
         if (inspirationMode === 'mid') {
@@ -287,7 +411,7 @@ export default function CollageCreator() {
       }
       
       // FOREGROUND DETAILS - varies by mode
-      const foregroundElements = workingElements.filter(el => identifyElementRole(el) === 'foreground')
+      const foregroundElements = availableElements.filter(el => identifyElementRole(el) === 'foreground')
       if (foregroundElements.length > 0 && (inspirationMode === 'mid' || inspirationMode === 'high')) {
         let foregroundCount: number
         if (inspirationMode === 'mid') {
@@ -471,11 +595,6 @@ export default function CollageCreator() {
     return availableElements.filter(el => el.category === selectedCategory)
   }
 
-  const loadMoreElements = () => {
-    const increment = isMobile ? 12 : 20
-    setVisibleElementsCount(prev => prev + increment)
-  }
-
   const handleImageLoad = (elementId: string) => {
     setLoadedImages(prev => new Set([...prev, elementId]))
   }
@@ -560,12 +679,12 @@ export default function CollageCreator() {
                 <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-green-500 to-blue-500 bg-clip-text text-transparent">
                   COLLAGE CREATOR
                 </h1>
-                <div className="text-xs text-gray-400">Mobile Mode</div>
+                <div className="text-xs text-gray-400">Mobile Mode • {availableElements.length} elements</div>
               </div>
               {selectedElement && (
                 <button
                   onClick={() => deleteElement(selectedElement)}
-                  className="bg-red-600 hover:bg-red-700 px-3 py-2 text-sm font-semibold flex items-center gap-2"
+                  className="bg-red-600 hover:bg-red-700 px-3 py-2 text-sm font-semibold flex items-center gap-2 transition-colors"
                 >
                   <Trash2 size={16} />
                   DELETE
@@ -577,7 +696,7 @@ export default function CollageCreator() {
             <div className="grid grid-cols-3 gap-2 mb-3">
               <button
                 onClick={() => setInspirationMode('minimal')}
-                className={`p-2 text-xs font-bold ${
+                className={`p-2 text-xs font-bold transition-all duration-200 ${
                   inspirationMode === 'minimal'
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-800 text-gray-300'
@@ -587,7 +706,7 @@ export default function CollageCreator() {
               </button>
               <button
                 onClick={() => setInspirationMode('mid')}
-                className={`p-2 text-xs font-bold ${
+                className={`p-2 text-xs font-bold transition-all duration-200 ${
                   inspirationMode === 'mid'
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-800 text-gray-300'
@@ -597,7 +716,7 @@ export default function CollageCreator() {
               </button>
               <button
                 onClick={() => setInspirationMode('high')}
-                className={`p-2 text-xs font-bold ${
+                className={`p-2 text-xs font-bold transition-all duration-200 ${
                   inspirationMode === 'high'
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-800 text-gray-300'
@@ -663,7 +782,9 @@ export default function CollageCreator() {
             )}
             
             <div className="mt-3 text-center">
-              <div className="text-xs text-gray-400">{collageElements.length} elements • Tap to select • Drag to move</div>
+              <div className="text-xs text-gray-400">
+                {collageElements.length} elements • Tap to select • Drag to move
+              </div>
             </div>
           </div>
           
@@ -680,9 +801,6 @@ export default function CollageCreator() {
                   overflow: 'hidden',
                   cursor: 'default'
                 }}
-                onMouseMove={handleCanvasMouseMove}
-                onMouseUp={handleCanvasMouseUp}
-                onMouseLeave={handleCanvasMouseUp}
                 onTouchMove={(e) => {
                   const touch = e.touches[0]
                   if (touch && draggedCanvasElement && canvasRef.current) {
@@ -720,7 +838,7 @@ export default function CollageCreator() {
                     return (
                       <div
                         key={elementId}
-                        className={`collage-element absolute select-none transition-all duration-150 ease-out ${
+                        className={`collage-element absolute select-none transition-all duration-200 ease-out ${
                           isSelected ? 'ring-4 ring-yellow-400 ring-offset-4 ring-offset-white shadow-2xl' : ''
                         } ${draggedCanvasElement === element ? 'opacity-90 scale-110 z-50' : ''}`}
                         style={{
@@ -733,11 +851,8 @@ export default function CollageCreator() {
                           cursor: 'pointer',
                           pointerEvents: 'auto',
                           willChange: draggedCanvasElement === element ? 'transform' : 'auto',
-                          backfaceVisibility: 'hidden',
-                          perspective: 1000
+                          backfaceVisibility: 'hidden'
                         }}
-                        onClick={(e) => handleElementClick(e, element)}
-                        onMouseDown={(e) => handleElementMouseDown(e, element)}
                         onTouchStart={(e) => {
                           e.stopPropagation()
                           const touch = e.touches[0]
@@ -765,7 +880,7 @@ export default function CollageCreator() {
                             e.currentTarget.style.display = 'none'
                           }}
                           style={{
-                            imageRendering: 'crisp-edges',
+                            imageRendering: 'high-quality',
                             transform: 'translate3d(0, 0, 0)',
                             backfaceVisibility: 'hidden'
                           }}
@@ -774,8 +889,8 @@ export default function CollageCreator() {
                           <div className="absolute -top-1 -right-1 w-2 h-2 bg-gradient-to-r from-green-500 to-blue-500 rounded-full shadow-lg"></div>
                         )}
                         {isSelected && (
-                          <div className="absolute -top-2 -right-2 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg">
-                            <div className="w-1 h-1 bg-white rounded-full"></div>
+                          <div className="absolute -top-3 -right-3 w-6 h-6 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg animate-pulse">
+                            <div className="w-2 h-2 bg-white rounded-full"></div>
                           </div>
                         )}
                       </div>
@@ -893,6 +1008,7 @@ export default function CollageCreator() {
                   <label className="text-sm font-bold text-gray-400 tracking-wide">
                     ELEMENT LIBRARY
                   </label>
+                  <div className="text-xs text-gray-500">({availableElements.length} total)</div>
                 </div>
                 
                 {/* Category Filter */}
@@ -900,9 +1016,6 @@ export default function CollageCreator() {
                   value={selectedCategory}
                   onChange={(e) => {
                     setSelectedCategory(e.target.value)
-                    // Reset visible count when changing category
-                    setVisibleElementsCount(isMobile ? 12 : 20)
-                    setLoadedImages(new Set()) // Clear loaded images cache
                   }}
                   className="w-full p-2 bg-gray-800 border border-gray-700 text-white mb-4 text-sm"
                 >
@@ -914,55 +1027,19 @@ export default function CollageCreator() {
                   ))}
                 </select>
 
-                {/* Elements Grid */}
+                {/* Elements Grid with Lazy Loading */}
                 <div className="max-h-80 overflow-y-auto border border-gray-700 bg-gray-900 p-2">
                   <div className="grid grid-cols-3 gap-2">
-                    {getFilteredElements().slice(0, visibleElementsCount).map((element, index) => {
-                      const isLoaded = loadedImages.has(element.id)
-                      const showImage = !isMobile || index < 6 // On mobile, show first 6 immediately
-                      
-                      return (
-                        <div
-                          key={element.id}
-                          draggable={!isMobile} // Disable drag on mobile for better touch experience
-                          onDragStart={() => !isMobile && setDraggedElement(element)}
-                          onDragEnd={() => !isMobile && setDraggedElement(null)}
-                          onClick={() => addElementToCanvas(element)}
-                          className={`aspect-square bg-gray-800 border border-gray-600 hover:border-blue-500 cursor-pointer transition-all duration-200 hover:scale-105 p-1 group relative ${
-                            !isLoaded && showImage ? 'animate-pulse' : ''
-                          }`}
-                          title={`${element.name} - ${isMobile ? 'Tap' : 'Click'} to add${!isMobile ? ' or drag to canvas' : ''}`}
-                        >
-                          {showImage ? (
-                            <>
-                              {!isLoaded && (
-                                <div className="absolute inset-0 bg-gray-700 rounded animate-pulse flex items-center justify-center">
-                                  <div className="w-4 h-4 bg-gray-600 rounded"></div>
-                                </div>
-                              )}
-                              <img
-                                src={element.file_url}
-                                alt={element.name}
-                                className={`w-full h-full object-contain transition-opacity duration-300 ${
-                                  isLoaded ? 'opacity-100' : 'opacity-0'
-                                } group-hover:opacity-80`}
-                                loading="lazy"
-                                onLoad={() => handleImageLoad(element.id)}
-                                onError={() => handleImageError(element.id)}
-                                // Remove crossOrigin for better mobile compatibility
-                                style={{
-                                  imageRendering: 'crisp-edges'
-                                }}
-                              />
-                            </>
-                          ) : (
-                            <div className="w-full h-full bg-gray-700 rounded flex items-center justify-center text-xs text-gray-400">
-                              IMG
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
+                    {getFilteredElements().slice(0, visibleElementsCount).map((element) => (
+                      <LazyImage
+                        key={element.id}
+                        element={element}
+                        className="aspect-square border border-gray-600 hover:border-blue-500 cursor-pointer transition-all duration-200 hover:scale-105 p-1"
+                        onClick={() => addElementToCanvas(element)}
+                        onLoad={() => handleImageLoad(element.id)}
+                        onError={() => handleImageError(element.id)}
+                      />
+                    ))}
                   </div>
                   
                   {/* Load More Button */}
@@ -970,14 +1047,24 @@ export default function CollageCreator() {
                     <div className="text-center mt-4">
                       <button
                         onClick={loadMoreElements}
-                        className="bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-semibold transition-colors duration-200"
+                        disabled={isLoadingMore}
+                        className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 px-4 py-2 text-sm font-semibold transition-colors duration-200 flex items-center gap-2 mx-auto"
                       >
-                        LOAD MORE ({getFilteredElements().length - visibleElementsCount} remaining)
+                        {isLoadingMore ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            LOADING...
+                          </>
+                        ) : (
+                          <>
+                            LOAD MORE ({getFilteredElements().length - visibleElementsCount} remaining)
+                          </>
+                        )}
                       </button>
                     </div>
                   )}
                   
-                  {visibleElementsCount >= getFilteredElements().length && getFilteredElements().length > 20 && (
+                  {visibleElementsCount >= getFilteredElements().length && getFilteredElements().length > 30 && (
                     <div className="text-center text-xs text-gray-500 mt-2">
                       All {getFilteredElements().length} elements loaded
                     </div>
@@ -1021,7 +1108,7 @@ export default function CollageCreator() {
                           
                           updateElement(selectedElement, { zIndex: maxZIndex })
                         }}
-                        className="bg-blue-600 hover:bg-blue-700 px-2 py-1 text-xs font-semibold"
+                        className="bg-blue-600 hover:bg-blue-700 px-2 py-1 text-xs font-semibold transition-colors"
                         title="Bring to very top of layer"
                       >
                         TOP
@@ -1044,7 +1131,7 @@ export default function CollageCreator() {
                           
                           updateElement(selectedElement, { zIndex: minZIndex })
                         }}
-                        className="bg-blue-600 hover:bg-blue-700 px-2 py-1 text-xs font-semibold"
+                        className="bg-blue-600 hover:bg-blue-700 px-2 py-1 text-xs font-semibold transition-colors"
                         title="Send to very back of layer"
                       >
                         BACK
@@ -1102,30 +1189,9 @@ export default function CollageCreator() {
                       <div className="text-xs text-gray-500">{Math.round(selectedElement.opacity * 100)}%</div>
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        onClick={() => updateElement(selectedElement, { 
-                          x: Math.max(0, selectedElement.x - 5),
-                          y: Math.max(0, selectedElement.y - 5)
-                        })}
-                        className="bg-gray-700 hover:bg-gray-600 p-2 text-xs font-semibold"
-                      >
-                        NUDGE ↖
-                      </button>
-                      <button
-                        onClick={() => updateElement(selectedElement, { 
-                          x: Math.min(95, selectedElement.x + 5),
-                          y: Math.max(0, selectedElement.y - 5)
-                        })}
-                        className="bg-gray-700 hover:bg-gray-600 p-2 text-xs font-semibold"
-                      >
-                        NUDGE ↗
-                      </button>
-                    </div>
-                    
                     <button
                       onClick={() => deleteElement(selectedElement)}
-                      className="w-full bg-red-600 hover:bg-red-700 p-2 text-sm font-semibold flex items-center justify-center gap-2"
+                      className="w-full bg-red-600 hover:bg-red-700 p-2 text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
                     >
                       <Trash2 size={16} />
                       DELETE (Del)
@@ -1145,27 +1211,6 @@ export default function CollageCreator() {
                       <p><span className="text-red-400">RIGHT-CLICK</span> or use DELETE key to remove</p>
                       <p><span className="text-green-400">DRAG</span> selected elements to move</p>
                       <p><span className="text-blue-400">TIP:</span> Click multiple times to reach elements behind others</p>
-                    </div>
-                    <div className="mt-3 pt-2 border-t border-blue-600">
-                      <h4 className="font-bold text-blue-300 mb-1">LAYER SYSTEM:</h4>
-                      <div className="flex justify-center gap-3 text-xs">
-                        <div className="flex items-center gap-1">
-                          <div className="w-3 h-3 bg-blue-500 rounded"></div>
-                          <span>SKY</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <div className="w-3 h-3 bg-green-500 rounded"></div>
-                          <span>GROUND</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <div className="w-3 h-3 bg-yellow-500 rounded"></div>
-                          <span>MID</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <div className="w-3 h-3 bg-red-500 rounded"></div>
-                          <span>FORE</span>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -1209,7 +1254,7 @@ export default function CollageCreator() {
                         setSelectedElementId(null)
                       }
                     }}
-                    className="w-full bg-red-600 hover:bg-red-700 p-3 text-sm font-semibold flex items-center justify-center gap-2"
+                    className="w-full bg-red-600 hover:bg-red-700 p-3 text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
                   >
                     <Trash2 size={16} />
                     CLEAR ALL
@@ -1321,7 +1366,7 @@ export default function CollageCreator() {
                     return (
                       <div
                         key={elementId}
-                        className={`collage-element absolute select-none transition-all duration-150 ease-out ${
+                        className={`collage-element absolute select-none transition-all duration-200 ease-out ${
                           isSelected ? 'ring-4 ring-yellow-400 ring-offset-4 ring-offset-white shadow-2xl' : 'hover:ring-2 hover:ring-blue-400 hover:ring-offset-2 hover:ring-offset-white'
                         } ${draggedCanvasElement === element ? 'opacity-90 scale-110 z-50' : ''}`}
                         style={{
@@ -1332,7 +1377,9 @@ export default function CollageCreator() {
                           zIndex: draggedCanvasElement === element ? 999 : element.zIndex,
                           transformOrigin: 'center',
                           cursor: isSelected ? 'grab' : 'pointer',
-                          pointerEvents: 'auto' // Ensure all elements can receive clicks
+                          pointerEvents: 'auto',
+                          willChange: draggedCanvasElement === element ? 'transform' : 'auto',
+                          backfaceVisibility: 'hidden'
                         }}
                         onMouseDown={(e) => {
                           e.stopPropagation()
@@ -1372,9 +1419,14 @@ export default function CollageCreator() {
                           alt={element.name}
                           className="max-w-48 max-h-48 lg:max-w-64 lg:max-h-64 object-contain drop-shadow-lg pointer-events-none"
                           loading="lazy"
-                          crossOrigin="anonymous"
+                          onError={(e) => {
+                            console.error('🚨 Canvas image failed to load:', element.name)
+                            // Hide broken images gracefully
+                            e.currentTarget.style.opacity = '0.3'
+                            e.currentTarget.style.filter = 'grayscale(100%)'
+                          }}
                           style={{
-                            imageRendering: 'crisp-edges',
+                            imageRendering: 'high-quality',
                             transform: 'translate3d(0, 0, 0)',
                             backfaceVisibility: 'hidden'
                           }}
@@ -1383,7 +1435,7 @@ export default function CollageCreator() {
                           <div className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-r from-green-500 to-blue-500 rounded-full shadow-lg pointer-events-none"></div>
                         )}
                         {isSelected && (
-                          <div className="absolute -top-3 -right-3 w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg pointer-events-none animate-pulse">
+                          <div className="absolute -top-4 -right-4 w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg pointer-events-none animate-pulse">
                             <div className="w-3 h-3 bg-white rounded-full"></div>
                           </div>
                         )}
