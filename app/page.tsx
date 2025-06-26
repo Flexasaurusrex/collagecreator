@@ -519,18 +519,30 @@ export default function CollageCreator() {
     
     // Left click to select AND bring to ABSOLUTE FRONT
     const elementId = `${element.id}-${element.x}-${element.y}`
-    console.log('🎯 Element selected:', element.name, 'ID:', elementId, 'Z-Index:', element.zIndex)
+    console.log('🎯 Element clicked:', element.name, 'Current Z-Index:', element.zIndex)
     setSelectedElementId(elementId)
     
-    // FIXED: Always bring clicked element to ABSOLUTE FRONT over ALL other elements
-    const maxZIndex = collageElements.length > 0 
-      ? Math.max(...collageElements.map(el => el.zIndex))
-      : element.zIndex
+    // AGGRESSIVE: Get current max z-index and force element to absolute front
+    const allZIndexes = collageElements.map(el => el.zIndex)
+    const maxZIndex = Math.max(...allZIndexes, 0)
+    const newZIndex = maxZIndex + 50 // Big jump to ensure it's clearly on top
     
-    const newZIndex = maxZIndex + 10 // Always place well above everything else
+    console.log('📊 All current z-indexes:', allZIndexes)
+    console.log(`🚀 Moving ${element.name} from z-index ${element.zIndex} to ${newZIndex}`)
     
-    updateElement(element, { zIndex: newZIndex })
-    console.log(`🔝 Brought ${element.name} to ABSOLUTE FRONT (z-index: ${element.zIndex} → ${newZIndex})`)
+    // FORCE UPDATE: Update the element immediately and aggressively
+    setCollageElements(prev => {
+      const updated = prev.map(el => {
+        if (el.id === element.id && el.x === element.x && el.y === element.y) {
+          const updatedElement = { ...el, zIndex: newZIndex }
+          console.log('✅ Updated element:', updatedElement.name, 'new z-index:', updatedElement.zIndex)
+          return updatedElement
+        }
+        return el
+      })
+      console.log('🔄 New elements array z-indexes:', updated.map(el => ({ name: el.name, z: el.zIndex })))
+      return updated
+    })
   }
 
   const handleElementMouseDown = (e: React.MouseEvent, element: CollageElement) => {
@@ -802,8 +814,8 @@ export default function CollageCreator() {
                           top: `${element.y}%`,
                           transform: `translate3d(0, 0, 0) rotate(${element.rotation}deg) scale(${element.scale})`,
                           opacity: draggedCanvasElement === element ? 0.9 : element.opacity,
-                          // FIXED: Use element's actual zIndex (preserves front position) + boost when dragging  
-                          zIndex: draggedCanvasElement === element ? element.zIndex + 1000 : element.zIndex,
+                          // AGGRESSIVE: Always use element's current zIndex + massive boost when dragging
+                          zIndex: draggedCanvasElement === element ? element.zIndex + 10000 : element.zIndex,
                           transformOrigin: 'center',
                           cursor: 'pointer',
                           pointerEvents: 'auto',
@@ -1041,14 +1053,18 @@ export default function CollageCreator() {
                     <div className="flex gap-1">
                       <button
                         onClick={() => {
-                          // FIXED: Bring to ABSOLUTE FRONT just like clicking does
-                          const maxZIndex = collageElements.length > 0 
-                            ? Math.max(...collageElements.map(el => el.zIndex))
-                            : selectedElement.zIndex
+                          // AGGRESSIVE: Same logic as clicking - force to absolute front
+                          const allZIndexes = collageElements.map(el => el.zIndex)
+                          const maxZIndex = Math.max(...allZIndexes, 0)
+                          const newZIndex = maxZIndex + 50
                           
-                          const newZIndex = maxZIndex + 10
-                          updateElement(selectedElement, { zIndex: newZIndex })
-                          console.log(`🔝 TOP button: Brought ${selectedElement.name} to absolute front (${newZIndex})`)
+                          console.log(`🔝 TOP button: Moving ${selectedElement.name} from ${selectedElement.zIndex} to ${newZIndex}`)
+                          
+                          setCollageElements(prev => prev.map(el => 
+                            (el.id === selectedElement.id && el.x === selectedElement.x && el.y === selectedElement.y) 
+                              ? { ...el, zIndex: newZIndex }
+                              : el
+                          ))
                         }}
                         className="bg-blue-600 hover:bg-blue-700 px-2 py-1 text-xs font-semibold transition-colors"
                       >
@@ -1286,15 +1302,13 @@ export default function CollageCreator() {
                           top: `${element.y}%`,
                           transform: `translate3d(0, 0, 0) rotate(${element.rotation}deg) scale(${element.scale})`,
                           opacity: draggedCanvasElement === element ? 0.9 : element.opacity,
-                          // FIXED: Use element's actual zIndex (which gets updated on click) + boost when dragging
-                          zIndex: draggedCanvasElement === element ? element.zIndex + 1000 : element.zIndex,
+                          // AGGRESSIVE: Always use element's current zIndex + massive boost when dragging
+                          zIndex: draggedCanvasElement === element ? element.zIndex + 10000 : element.zIndex,
                           transformOrigin: 'center',
-                          // ENHANCED: Better cursor feedback for clickability
                           cursor: draggedCanvasElement === element ? 'grabbing' : (isSelected ? 'grab' : 'pointer'),
                           pointerEvents: 'auto',
                           willChange: draggedCanvasElement === element ? 'transform' : 'auto',
                           backfaceVisibility: 'hidden',
-                          // REMOVED: No more minWidth/minHeight - let image define the bounds
                         }}
                         onMouseDown={(e) => {
                           // ENHANCED: Prevent event interference during drag start
