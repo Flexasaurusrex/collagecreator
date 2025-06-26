@@ -517,27 +517,20 @@ export default function CollageCreator() {
       return
     }
     
-    // Left click to select AND bring to front within layer
+    // Left click to select AND bring to ABSOLUTE FRONT
     const elementId = `${element.id}-${element.x}-${element.y}`
     console.log('🎯 Element selected:', element.name, 'ID:', elementId, 'Z-Index:', element.zIndex)
     setSelectedElementId(elementId)
     
-    // Automatically bring to front within its layer
-    const role = identifyElementRole(element)
-    let newZIndex: number
+    // FIXED: Always bring clicked element to ABSOLUTE FRONT over ALL other elements
+    const maxZIndex = collageElements.length > 0 
+      ? Math.max(...collageElements.map(el => el.zIndex))
+      : element.zIndex
     
-    if (role === 'sky') {
-      newZIndex = Math.min(4, Math.max(...collageElements.filter(el => identifyElementRole(el) === 'sky').map(el => el.zIndex)) + 1)
-    } else if (role === 'ground') {
-      newZIndex = Math.min(15, Math.max(...collageElements.filter(el => identifyElementRole(el) === 'ground').map(el => el.zIndex)) + 1)
-    } else if (role === 'midground') {
-      newZIndex = Math.min(25, Math.max(...collageElements.filter(el => identifyElementRole(el) === 'midground').map(el => el.zIndex)) + 1)
-    } else {
-      newZIndex = Math.max(...collageElements.filter(el => identifyElementRole(el) === 'foreground').map(el => el.zIndex)) + 1
-    }
+    const newZIndex = maxZIndex + 10 // Always place well above everything else
     
     updateElement(element, { zIndex: newZIndex })
-    console.log(`🔝 Brought ${element.name} to front of ${role.toUpperCase()} layer (z-index: ${element.zIndex} → ${newZIndex})`)
+    console.log(`🔝 Brought ${element.name} to ABSOLUTE FRONT (z-index: ${element.zIndex} → ${newZIndex})`)
   }
 
   const handleElementMouseDown = (e: React.MouseEvent, element: CollageElement) => {
