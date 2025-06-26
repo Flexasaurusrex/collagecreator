@@ -498,6 +498,7 @@ export default function CollageCreator() {
       setIsExporting(false)
     }
   }
+  }
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col lg:flex-row">
