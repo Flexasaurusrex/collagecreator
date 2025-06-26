@@ -118,7 +118,7 @@ export default function CollageMaker() {
       setAvailableElements(filteredElements)
       setTotalElementCount(filteredElements.length)
       
-      const uniqueCategories = [...new Set(filteredElements.map(el => el.category))].sort()
+      const uniqueCategories = Array.from(new Set(filteredElements.map(el => el.category))).sort()
       setCategories(uniqueCategories)
       
       console.log(`✅ After filtering: ${filteredElements.length} elements, ${uniqueCategories.length} categories`)
@@ -314,7 +314,7 @@ export default function CollageMaker() {
         id: `inspiration-${Date.now()}-${index}`,
         elementId: element.id,
         name: element.name,
-        url: element.image || element.path || element.file_url || element.asset_url || '',
+        url: (element as any).url || (element as any).image || (element as any).file_path || '',
         x: Math.random() * (canvasRect.width - 150),
         y: Math.random() * (canvasRect.height - 150),
         width: 80 + Math.random() * 60,
