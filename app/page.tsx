@@ -205,41 +205,44 @@ export default function CollageRandomizer() {
   }
 
   const getSmartScale = (element: Element, primary: boolean): number => {
-    // Smart scaling based on element type
+    // Smart scaling based on element type - MAKE BACKGROUNDS MUCH LARGER
     const backgroundCategories = ['nature', 'architecture', 'space', 'vintage']
     const foregroundCategories = ['people', 'animals', 'explosions']
     
     if (backgroundCategories.includes(element.category)) {
-      // Background elements should be larger
-      return primary ? 0.6 + Math.random() * 0.4 : 0.4 + Math.random() * 0.5
+      // Background elements should be LARGE to fill space
+      return primary ? 0.8 + Math.random() * 0.7 : 0.6 + Math.random() * 0.8 // Much larger backgrounds
     } else if (foregroundCategories.includes(element.category)) {
-      // Foreground elements should be smaller to medium
-      return primary ? 0.3 + Math.random() * 0.4 : 0.2 + Math.random() * 0.3
+      // Foreground elements should be medium to large for visibility
+      return primary ? 0.4 + Math.random() * 0.5 : 0.3 + Math.random() * 0.4
     } else {
       // Mid-ground elements - balanced sizing
-      return primary ? 0.4 + Math.random() * 0.4 : 0.25 + Math.random() * 0.4
+      return primary ? 0.5 + Math.random() * 0.5 : 0.3 + Math.random() * 0.5
     }
   }
 
   const calculateCanvasCoverage = (elements: CollageElement[], canvasWidth: number, canvasHeight: number): number => {
-    // Create a grid to track coverage (simplified approach)
-    const gridSize = 20 // 20x20 grid for coverage calculation
+    // Create a higher resolution grid to track coverage for better accuracy
+    const gridSize = 30 // 30x30 grid for more precise coverage calculation
     const grid = Array(gridSize).fill(null).map(() => Array(gridSize).fill(false))
     
     elements.forEach(element => {
-      // Calculate element boundaries
-      const elementWidth = (element.scale * 32) // Approximate element size
-      const elementHeight = (element.scale * 32)
+      // Calculate element boundaries with better size estimation
+      const elementWidth = (element.scale * 64) // Larger base size since elements are bigger now
+      const elementHeight = (element.scale * 64)
       
-      const startX = Math.floor((element.x / 100) * gridSize)
-      const startY = Math.floor((element.y / 100) * gridSize)
-      const endX = Math.min(gridSize - 1, startX + Math.floor((elementWidth / canvasWidth) * gridSize))
-      const endY = Math.min(gridSize - 1, startY + Math.floor((elementHeight / canvasHeight) * gridSize))
+      const centerX = Math.floor((element.x / 100) * gridSize)
+      const centerY = Math.floor((element.y / 100) * gridSize)
+      const radiusX = Math.floor((elementWidth / canvasWidth) * gridSize / 2)
+      const radiusY = Math.floor((elementHeight / canvasHeight) * gridSize / 2)
       
-      // Mark grid cells as covered
-      for (let y = startY; y <= endY; y++) {
-        for (let x = startX; x <= endX; x++) {
-          if (y >= 0 && y < gridSize && x >= 0 && x < gridSize) {
+      // Mark grid cells as covered in a more realistic circular/oval pattern
+      for (let y = Math.max(0, centerY - radiusY); y <= Math.min(gridSize - 1, centerY + radiusY); y++) {
+        for (let x = Math.max(0, centerX - radiusX); x <= Math.min(gridSize - 1, centerX + radiusX); x++) {
+          // Create more organic coverage pattern
+          const distanceX = Math.abs(x - centerX) / (radiusX || 1)
+          const distanceY = Math.abs(y - centerY) / (radiusY || 1)
+          if (distanceX * distanceX + distanceY * distanceY <= 1.2) { // Slightly larger coverage area
             grid[y][x] = true
           }
         }
@@ -252,7 +255,7 @@ export default function CollageRandomizer() {
     return (coveredCells / totalCells) * 100
   }
 
-  const fillCanvasGaps = (elements: CollageElement[], targetCoverage: number = 85): CollageElement[] => {
+  const fillCanvasGaps = (elements: CollageElement[], targetCoverage: number = 95): CollageElement[] => {
     const canvasWidth = 600 // Approximate canvas width
     const canvasHeight = 800 // Approximate canvas height (3:4 ratio)
     
@@ -261,26 +264,46 @@ export default function CollageRandomizer() {
     
     console.log(`Initial coverage: ${coverage.toFixed(1)}%`)
     
-    // Add background filler elements if coverage is too low
+    // First pass: Add large background elements to fill major gaps
     let attempts = 0
-    while (coverage < targetCoverage && attempts < 50 && availableElements.length > 0) {
-      const randomElement = availableElements[Math.floor(Math.random() * availableElements.length)]
+    while (coverage < targetCoverage && attempts < 100 && availableElements.length > 0) {
+      const backgroundCategories = ['nature', 'architecture', 'space', 'vintage']
+      const backgroundElements = availableElements.filter(el => backgroundCategories.includes(el.category))
       
-      // Create a filler element with smart placement
+      const randomElement = backgroundElements.length > 0 
+        ? backgroundElements[Math.floor(Math.random() * backgroundElements.length)]
+        : availableElements[Math.floor(Math.random() * availableElements.length)]
+      
+      // Create large background filler elements
       const fillerElement: CollageElement = {
         ...randomElement,
-        x: Math.random() * 85,
-        y: Math.random() * 90,
-        scale: 0.3 + Math.random() * 0.6, // Medium to large for filling
-        rotation: (Math.random() - 0.5) * 360, // Full rotation for variety
-        opacity: 0.3 + Math.random() * 0.4, // Lower opacity for background fill
-        zIndex: Math.floor(Math.random() * 5), // Low z-index (background)
+        x: Math.random() * 70, // Wider spread
+        y: Math.random() * 80, // Taller spread
+        scale: 0.6 + Math.random() * 0.8, // Much larger elements for background fill
+        rotation: (Math.random() - 0.5) * 360, // Full rotation
+        opacity: 0.4 + Math.random() * 0.6, // Variable opacity for layering
+        zIndex: Math.floor(Math.random() * 8), // Background to mid-ground
         primary: false
       }
       
       currentElements.push(fillerElement)
       coverage = calculateCanvasCoverage(currentElements, canvasWidth, canvasHeight)
       attempts++
+      
+      // Add extra small elements in gaps if coverage is still low
+      if (attempts > 20 && coverage < targetCoverage - 10) {
+        const smallElement: CollageElement = {
+          ...availableElements[Math.floor(Math.random() * availableElements.length)],
+          x: Math.random() * 90,
+          y: Math.random() * 95,
+          scale: 0.2 + Math.random() * 0.4, // Smaller gap fillers
+          rotation: (Math.random() - 0.5) * 180,
+          opacity: 0.3 + Math.random() * 0.5,
+          zIndex: Math.floor(Math.random() * 15),
+          primary: false
+        }
+        currentElements.push(smallElement)
+      }
     }
     
     console.log(`Final coverage: ${coverage.toFixed(1)}% after ${attempts} filler elements`)
@@ -364,66 +387,85 @@ export default function CollageRandomizer() {
           console.warn(`Only ${exclusiveElements.length} elements found for "${exclusiveLabel}" - this may result in a sparse collage`)
         }
         
-        // Adapt element counts based on available elements
+        // Adapt element counts based on available elements - CREATE DENSE COMPOSITIONS
         const maxElements = exclusiveElements.length
-        const primaryCount = Math.min(Math.floor(Math.random() * 3) + 2, Math.floor(maxElements * 0.4)) // 2-4 primary, max 40% of available
-        const secondaryCount = Math.min(Math.floor(Math.random() * 8) + 6, maxElements - primaryCount) // 6-14 secondary, use remaining
+        const primaryCount = Math.min(Math.floor(Math.random() * 4) + 3, Math.floor(maxElements * 0.3)) // 3-6 primary
+        const secondaryCount = Math.min(Math.floor(Math.random() * 15) + 15, maxElements - primaryCount) // 15-29 secondary for density
         
         console.log(`Using ${primaryCount} primary + ${secondaryCount} secondary from ${maxElements} available ${exclusiveLabel} elements`)
         
-        // Add primary elements
+        // Add large background primary elements first
         for (let i = 0; i < primaryCount; i++) {
           const element = exclusiveElements[Math.floor(Math.random() * exclusiveElements.length)]
           
-          // Smart scaling and layering
+          // Smart scaling and layering - make backgrounds larger
           const smartScale = getSmartScale(element, true)
+          const isBackground = ['nature', 'architecture', 'space', 'vintage'].includes(element.category)
           
           elements.push({
             ...element,
-            x: Math.random() * 65,
-            y: Math.random() * 75,
-            scale: smartScale,
-            rotation: (Math.random() - 0.5) * 50,
-            opacity: 0.85 + Math.random() * 0.15,
+            x: Math.random() * (isBackground ? 40 : 60), // Backgrounds spread more
+            y: Math.random() * (isBackground ? 50 : 70),
+            scale: smartScale * (isBackground ? 1.5 : 1.2), // Larger elements
+            rotation: (Math.random() - 0.5) * (isBackground ? 30 : 50),
+            opacity: 0.8 + Math.random() * 0.2,
             zIndex: getElementLayer(element, smartScale, true),
             primary: true
           })
         }
         
-        // Add secondary elements
+        // Add dense overlapping secondary elements
         for (let i = 0; i < secondaryCount; i++) {
           const element = exclusiveElements[Math.floor(Math.random() * exclusiveElements.length)]
-          
-          // Avoid exact duplicates
-          const isDuplicate = elements.some(el => 
-            el.id === element.id && 
-            Math.abs(el.x - (Math.random() * 80)) < 15 &&
-            Math.abs(el.y - (Math.random() * 85)) < 15
-          )
-          
-          if (isDuplicate) continue
           
           // Smart scaling and layering for secondary elements
           const smartScale = getSmartScale(element, false)
           
           elements.push({
             ...element,
-            x: Math.random() * 80,
-            y: Math.random() * 85,
-            scale: smartScale,
-            rotation: (Math.random() - 0.5) * 80,
-            opacity: 0.4 + Math.random() * 0.5,
+            x: Math.random() * 90, // Full canvas coverage
+            y: Math.random() * 95,
+            scale: smartScale * (0.7 + Math.random() * 0.8), // Variable sizing
+            rotation: (Math.random() - 0.5) * 120,
+            opacity: 0.4 + Math.random() * 0.6,
             zIndex: getElementLayer(element, smartScale, false),
             primary: false
           })
         }
         
       } else {
-        // NORMAL MODE: Mixed categories as before
+        // NORMAL MODE: Create layered collage composition
         console.log(`Normal mode: Using categories: ${primaryCategories.join(', ')}`)
         
-        // Add 3-6 primary elements from detected categories
-        const primaryCount = Math.floor(Math.random() * 4) + 3
+        // STEP 1: Place large background elements first (nature, architecture, space)
+        const backgroundCategories = ['nature', 'architecture', 'space', 'vintage']
+        const backgroundAvailable = primaryCategories.filter(cat => backgroundCategories.includes(cat))
+        
+        if (backgroundAvailable.length > 0) {
+          const backgroundCount = Math.floor(Math.random() * 4) + 3 // 3-6 background elements
+          for (let i = 0; i < backgroundCount; i++) {
+            const category = backgroundAvailable[Math.floor(Math.random() * backgroundAvailable.length)]
+            const categoryElements = availableElements.filter(el => el.category === category)
+            
+            if (categoryElements.length === 0) continue
+            
+            const element = categoryElements[Math.floor(Math.random() * categoryElements.length)]
+            
+            elements.push({
+              ...element,
+              x: Math.random() * 40, // Spread across canvas
+              y: Math.random() * 50,
+              scale: 0.8 + Math.random() * 0.6, // Large background elements
+              rotation: (Math.random() - 0.5) * 30, // Subtle rotation
+              opacity: 0.6 + Math.random() * 0.4,
+              zIndex: 1 + Math.floor(Math.random() * 5), // Background layer
+              primary: true
+            })
+          }
+        }
+        
+        // STEP 2: Add mid-ground elements from detected categories
+        const primaryCount = Math.floor(Math.random() * 4) + 4 // 4-7 primary elements
         for (let i = 0; i < primaryCount && primaryCategories.length > 0; i++) {
           const category = primaryCategories[Math.floor(Math.random() * primaryCategories.length)]
           const categoryElements = availableElements.filter(el => el.category === category)
@@ -439,40 +481,31 @@ export default function CollageRandomizer() {
           
           elements.push({
             ...element,
-            x: Math.random() * 65,
-            y: Math.random() * 75,
-            scale: smartScale,
-            rotation: (Math.random() - 0.5) * 50,
-            opacity: 0.85 + Math.random() * 0.15,
+            x: Math.random() * 60, // More centered placement
+            y: Math.random() * 70,
+            scale: smartScale * 1.2, // Make primary elements bigger
+            rotation: (Math.random() - 0.5) * 40,
+            opacity: 0.8 + Math.random() * 0.2,
             zIndex: getElementLayer(element, smartScale, true),
             primary: true
           })
         }
         
-        // Add 6-12 secondary random elements
-        const secondaryCount = Math.floor(Math.random() * 7) + 6
+        // STEP 3: Add overlapping secondary elements for density
+        const secondaryCount = Math.floor(Math.random() * 12) + 12 // 12-23 secondary elements
         for (let i = 0; i < secondaryCount; i++) {
           const element = availableElements[Math.floor(Math.random() * availableElements.length)]
           
-          // Avoid duplicates in same position
-          const isDuplicate = elements.some(el => 
-            el.id === element.id && 
-            Math.abs(el.x - (Math.random() * 80)) < 10 &&
-            Math.abs(el.y - (Math.random() * 85)) < 10
-          )
-          
-          if (isDuplicate) continue
-          
-          // Smart scaling and layering for secondary elements
+          // Create overlapping, dense placement
           const smartScale = getSmartScale(element, false)
           
           elements.push({
             ...element,
-            x: Math.random() * 80,
-            y: Math.random() * 85,
-            scale: smartScale,
-            rotation: (Math.random() - 0.5) * 80,
-            opacity: 0.4 + Math.random() * 0.5,
+            x: Math.random() * 85, // Full canvas usage
+            y: Math.random() * 90,
+            scale: smartScale * (0.8 + Math.random() * 0.8), // Variable sizing for interest
+            rotation: (Math.random() - 0.5) * 120, // More dramatic rotation
+            opacity: 0.5 + Math.random() * 0.5,
             zIndex: getElementLayer(element, smartScale, false),
             primary: false
           })
@@ -482,8 +515,8 @@ export default function CollageRandomizer() {
       // Sort by z-index for proper layering
       elements.sort((a, b) => a.zIndex - b.zIndex)
       
-      // Fill canvas gaps to ensure complete coverage
-      const filledElements = fillCanvasGaps(elements, 85) // 85% coverage target
+      // Fill canvas gaps to ensure complete coverage - AIM FOR DENSE COMPOSITIONS
+      const filledElements = fillCanvasGaps(elements, 95) // 95% coverage target for full collages
       
       setCollageElements(filledElements)
       
