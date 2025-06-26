@@ -314,7 +314,7 @@ export default function CollageMaker() {
         id: `inspiration-${Date.now()}-${index}`,
         elementId: element.id,
         name: element.name,
-        url: element.image_url || element.imageUrl || element.src || '',
+        url: element.url,
         x: Math.random() * (canvasRect.width - 150),
         y: Math.random() * (canvasRect.height - 150),
         width: 80 + Math.random() * 60,
