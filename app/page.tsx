@@ -105,45 +105,49 @@ export default function CollageCreator() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedElement])
 
-  // ULTRA-OPTIMIZED Image Component: Minimal overhead with smart loading
-  const OptimizedImage = ({ element, onClick }: { element: Element, onClick: () => void }) => {
-    const [loaded, setLoaded] = useState(false)
-    const [error, setError] = useState(false)
+  // FIXED: Working lazy image component (reverted to functional approach)
+  const LazyImage = ({ element, onClick }: { element: Element, onClick: () => void }) => {
+    const [imageLoaded, setImageLoaded] = useState(false)
+    const [imageError, setImageError] = useState(false)
     const [inView, setInView] = useState(false)
     const imgRef = useRef<HTMLDivElement>(null)
 
-    // Minimal intersection observer - disconnects immediately after loading
     useEffect(() => {
-      const current = imgRef.current
-      if (!current) return
+      const currentImg = imgRef.current
+      if (!currentImg) return
 
       const observer = new IntersectionObserver(
-        ([entry]) => {
-          if (entry.isIntersecting) {
-            setInView(true)
-            observer.disconnect() // Immediate cleanup
-          }
+        (entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting && !inView) {
+              setInView(true)
+              observer.disconnect() // Clean up after triggering
+            }
+          })
         },
-        { threshold: 0.1, rootMargin: '30px' }
+        { 
+          threshold: 0.1,
+          rootMargin: '50px' // Start loading 50px before entering viewport
+        }
       )
 
-      observer.observe(current)
+      observer.observe(currentImg)
       return () => observer.disconnect()
-    }, [])
+    }, [inView])
 
-    const handleLoad = useCallback(() => {
-      setLoaded(true)
+    const handleLoad = () => {
+      setImageLoaded(true)
       setImageCache(prev => {
         const newMap = new Map(prev)
         newMap.set(element.id, true)
         return newMap
       })
-    }, [element.id])
+    }
 
-    const handleError = useCallback(() => {
-      setError(true)
+    const handleError = () => {
+      setImageError(true)
       console.warn(`⚠️ Failed to load: ${element.name}`)
-    }, [element.name])
+    }
 
     return (
       <div
@@ -152,47 +156,50 @@ export default function CollageCreator() {
         onClick={onClick}
         title={`${element.name} - Click to add`}
       >
-        {inView && !error ? (
+        {inView && !imageError ? (
           <img
             src={element.file_url}
             alt={element.name}
-            className={`w-full h-full object-contain transition-opacity duration-300 ${
-              loaded ? 'opacity-100' : 'opacity-0'
-            } group-hover:opacity-80`}
+            className={`w-full h-full object-contain transition-all duration-300 ${
+              imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+            } group-hover:opacity-80 group-hover:scale-105`}
             onLoad={handleLoad}
             onError={handleError}
             loading="lazy"
             decoding="async"
             style={{
               imageRendering: 'crisp-edges',
-              transform: 'translateZ(0)', // GPU acceleration
+              transform: 'translateZ(0)',
               backfaceVisibility: 'hidden'
             }}
           />
         ) : null}
         
-        {!loaded && inView && !error && (
+        {!imageLoaded && inView && !imageError && (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-700">
-            <div className="w-4 h-4 bg-gray-600 rounded animate-pulse"></div>
+            <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
           </div>
         )}
         
         {!inView && (
-          <div className="absolute inset-0 bg-gray-800 flex items-center justify-center">
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
             <div className="text-xs text-gray-500">IMG</div>
           </div>
         )}
         
-        {error && (
-          <div className="absolute inset-0 bg-red-900/20 border border-red-500 flex items-center justify-center">
-            <div className="text-xs text-red-400">✗</div>
+        {imageError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-red-900/20 border border-red-500">
+            <div className="text-center">
+              <div className="text-xs text-red-400 mb-1">Failed</div>
+              <div className="w-4 h-4 bg-red-500 rounded mx-auto"></div>
+            </div>
           </div>
         )}
       </div>
     )
   }
 
-  // OPTIMIZED: Load elements with smart filtering
+  // OPTIMIZED: Load elements with minimal filtering
   const loadElements = async () => {
     try {
       console.log('🚀 Loading elements with 10k limit...')
@@ -200,26 +207,21 @@ export default function CollageCreator() {
       // Get all elements (now with 10k limit from Supabase)
       const allElements = await dbHelpers.getAllElements()
       
-      // Filter out problematic elements that might appear as dots
+      // MINIMAL filtering - only filter very obvious problematic elements
       const filteredElements = allElements.filter(el => {
         const name = el.name.toLowerCase()
-        const category = el.category?.toLowerCase() || ''
         
-        // Exclude elements that might appear as dots
-        const problematicKeywords = [
-          'dot', 'point', 'circle', 'icon', 'button', 'ui', 'cursor', 'arrow',
-          'bullet', 'marker', 'pin', 'badge', 'tag', 'logo', 'social', 'star',
-          'rating', 'check', 'cross', 'plus', 'minus', 'decoration', 'accent'
-        ]
+        // Only exclude the most obvious UI elements that would appear as tiny dots
+        const problematicKeywords = ['cursor', 'loading', 'spinner']
         
         const hasProblematicName = problematicKeywords.some(keyword => 
-          name.includes(keyword) || category.includes(keyword)
+          name.includes(keyword)
         )
         
         return !hasProblematicName
       })
       
-      console.log(`🎯 Loaded ${filteredElements.length} elements (filtered out ${allElements.length - filteredElements.length} potential dots)`)
+      console.log(`🎯 Loaded ${filteredElements.length} elements (filtered out ${allElements.length - filteredElements.length} obvious UI elements)`)
       
       setAvailableElements(filteredElements)
       setTotalElementCount(filteredElements.length)
