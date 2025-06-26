@@ -973,7 +973,7 @@ export default function CollageCreator() {
                 <div className="max-h-80 overflow-y-auto border border-gray-700 bg-gray-900 p-2">
                   <div className="grid grid-cols-3 gap-2">
                     {filteredElements.slice(0, visibleElementsCount).map((element) => (
-                      <OptimizedImage
+                      <LazyImage
                         key={element.id}
                         element={element}
                         onClick={() => addElementToCanvas(element)}
