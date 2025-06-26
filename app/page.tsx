@@ -43,7 +43,7 @@ const SmartImage = ({ element, isPriority, onClick }: { element: Element, isPrio
     >
       {shouldLoad ? (
         <img
-          src={element.image || element.path || element.file_url || element.asset_url || ''}
+          src={element.image_url || element.imageUrl || element.src}
           alt={element.name}
           className="w-full h-full object-cover"
           onLoad={() => setLoaded(true)}
