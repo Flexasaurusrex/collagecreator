@@ -105,6 +105,8 @@ export default function CollageCreator() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedElement])
 
+
+
   // PIXEL-PERFECT: Check if click coordinates hit actual image content
   const checkPixelHit = async (imgElement: HTMLImageElement, clickX: number, clickY: number, displayWidth: number, displayHeight: number): Promise<boolean> => {
     return new Promise((resolve) => {
@@ -137,7 +139,7 @@ export default function CollageCreator() {
           const alpha = pixelData[3]
           
           // Consider pixel "hit" if alpha > threshold (not fully transparent)
-          const alphaThreshold = 10 // Adjust this value for sensitivity
+          const alphaThreshold = 25 // Slightly higher for cleaner detection
           const isHit = alpha > alphaThreshold
           
           console.log(`🔍 Pixel check at (${Math.round(clickX)}, ${Math.round(clickY)}): alpha=${alpha}, hit=${isHit}`)
@@ -159,7 +161,7 @@ export default function CollageCreator() {
     })
   }
 
-  // PIXEL-PERFECT: Enhanced element click handler with contour detection (SELECTION ONLY)
+  // PIXEL-PERFECT: Enhanced element click handler with pixel-based detection
   const handleElementClick = async (e: React.MouseEvent, element: CollageElement) => {
     e.stopPropagation()
     e.preventDefault()
@@ -173,15 +175,15 @@ export default function CollageCreator() {
     const clickX = e.clientX - rect.left
     const clickY = e.clientY - rect.top
     
-    // CONTOUR DETECTION: Check if click is on actual image content
+    // PIXEL DETECTION: Check if click is on actual image content
     const isOnImageContent = await checkPixelHit(imgElement, clickX, clickY, rect.width, rect.height)
     
     if (!isOnImageContent) {
-      console.log('🚫 Click missed image content - ignoring')
-      return // Don't select if clicking on transparent/empty area
+      console.log('🚫 Click outside image pixels - ignoring')
+      return // Don't select if clicking outside the actual image content
     }
     
-    console.log('✅ Click hit image content - selecting')
+    console.log('✅ Click on image pixels - selecting')
     
     // Right click to delete (desktop only)
     if (e.button === 2 && !isMobile) {
@@ -199,7 +201,7 @@ export default function CollageCreator() {
     const maxZIndex = Math.max(...allZIndexes, 0)
     const newZIndex = maxZIndex + 1000
     
-    console.log(`🚀 DOM REORDER: ${element.name} z-index ${element.zIndex} → ${newZIndex} (will be last in DOM = on top)`)
+    console.log(`🚀 PIXEL-PERFECT REORDER: ${element.name} z-index ${element.zIndex} → ${newZIndex}`)
     
     // Update z-index - DOM will be automatically reordered by sort()
     setCollageElements(prev => {
@@ -232,7 +234,7 @@ export default function CollageCreator() {
     }
   }
 
-  // MOBILE: Simplified touch handler - NO pixel detection for drag start
+  // MOBILE: Simplified touch handler - pixel-perfect selection but free dragging
   const handleElementTouchStart = async (e: React.TouchEvent, element: CollageElement) => {
     e.stopPropagation()
     const touch = e.touches[0]
@@ -248,14 +250,14 @@ export default function CollageCreator() {
       const touchX = touch.clientX - rect.left
       const touchY = touch.clientY - rect.top
       
-      // CONTOUR DETECTION: Check if touch is on actual image content
+      // PIXEL DETECTION: Check if touch is on actual image content
       const isOnImageContent = await checkPixelHit(imgElement, touchX, touchY, rect.width, rect.height)
       
       if (!isOnImageContent) {
-        console.log('🚫 Touch missed image content - ignoring selection')
+        console.log('🚫 Touch outside image pixels - ignoring selection')
         shouldSelect = false
       } else {
-        console.log('✅ Touch hit image content - selecting')
+        console.log('✅ Touch on image pixels - selecting')
       }
     }
     
@@ -269,7 +271,7 @@ export default function CollageCreator() {
       const maxZIndex = Math.max(...allZIndexes, 0)
       const newZIndex = maxZIndex + 1000
       
-      console.log(`🚀 MOBILE DOM REORDER: ${element.name} z-index ${element.zIndex} → ${newZIndex}`)
+      console.log(`🚀 MOBILE PIXEL REORDER: ${element.name} z-index ${element.zIndex} → ${newZIndex}`)
       
       // Update z-index
       setCollageElements(prev => {
@@ -293,6 +295,88 @@ export default function CollageCreator() {
         y: touch.clientY - canvasRect.top - (element.y / 100) * canvasRect.height
       })
     }
+  }
+
+  // PIXEL-PERFECT: Component for elements with pixel-based click detection
+  const PixelPerfectElement = ({ element, isSelected, isDraggedElement }: { 
+    element: CollageElement, 
+    isSelected: boolean, 
+    isDraggedElement: boolean 
+  }) => {
+    const imgRef = useRef<HTMLImageElement>(null)
+    
+    const elementId = `${element.id}-${element.x}-${element.y}`
+    
+    return (
+      <div
+        className={`collage-element absolute select-none transition-all duration-200 ease-out ${
+          isSelected ? 'ring-2 ring-yellow-400 shadow-2xl' : 'hover:ring-1 hover:ring-blue-400'
+        } ${isDraggedElement ? 'opacity-90 scale-110' : ''}`}
+        style={{
+          left: `${element.x}%`,
+          top: `${element.y}%`,
+          transform: `translate3d(0, 0, 0) rotate(${element.rotation}deg) scale(${element.scale})`,
+          opacity: isDraggedElement ? 0.9 : element.opacity,
+          transformOrigin: 'center',
+          cursor: isDraggedElement ? 'grabbing' : (isSelected ? 'grab' : 'pointer'),
+          pointerEvents: 'auto',
+          willChange: isDraggedElement ? 'transform' : 'auto',
+          backfaceVisibility: 'hidden',
+          // REMOVED: clip-path that was restricting drag area
+        }}
+        onMouseDown={(e) => handleElementMouseDown(e, element)}
+        onClick={(e) => handleElementClick(e, element)}
+        onTouchStart={(e) => handleElementTouchStart(e, element)}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          if (!isMobile) {
+            deleteElement(element)
+          }
+        }}
+        onMouseEnter={(e) => {
+          if (!isSelected && !isDraggedElement) {
+            const elementDiv = e.currentTarget as HTMLElement
+            elementDiv.style.filter = 'brightness(1.1) drop-shadow(0 4px 12px rgba(59, 130, 246, 0.4))'
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!isSelected) {
+            const elementDiv = e.currentTarget as HTMLElement
+            elementDiv.style.filter = 'drop-shadow-lg'
+          }
+        }}
+      >
+        <img
+          ref={imgRef}
+          src={element.file_url}
+          alt={element.name}
+          className="object-contain drop-shadow-lg"
+          loading="lazy"
+          onError={(e) => {
+            e.currentTarget.style.opacity = '0.3'
+            e.currentTarget.style.filter = 'grayscale(100%)'
+          }}
+          style={{
+            imageRendering: 'crisp-edges',
+            transform: 'translate3d(0, 0, 0)',
+            backfaceVisibility: 'hidden',
+            display: 'block',
+            maxWidth: '300px',
+            maxHeight: '300px',
+            width: 'auto',
+            height: 'auto',
+            // IMPORTANT: Remove pointer events from image to let parent handle clicks
+            pointerEvents: 'none'
+          }}
+        />
+        {isSelected && (
+          <div className="absolute -top-2 -right-2 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg pointer-events-none animate-pulse">
+            <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+          </div>
+        )}
+      </div>
+    )
   }
 
   // TELEPORTATION: Instant manifesting image component - no loading states, no delays
@@ -806,7 +890,7 @@ export default function CollageCreator() {
                 <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-green-500 to-blue-500 bg-clip-text text-transparent">
                   COLLAGE CREATOR
                 </h1>
-                <div className="text-xs text-gray-400">Mobile • {availableElements.length} elements • SMOOTH DRAG</div>
+                <div className="text-xs text-gray-400">Mobile • {availableElements.length} elements • PIXEL-PERFECT</div>
               </div>
               {selectedElement && (
                 <button
@@ -893,7 +977,7 @@ export default function CollageCreator() {
             
             <div className="mt-3 text-center">
               <div className="text-xs text-gray-400">
-                {collageElements.length} elements • Touch image to select • Drag freely anywhere
+                {collageElements.length} elements • Touch image pixels to select • Drag freely anywhere!
               </div>
             </div>
           </div>
@@ -941,61 +1025,18 @@ export default function CollageCreator() {
                     overflow: 'hidden'
                   }}
                 >
-                  {/* CLEAN: DOM reordering for mobile - NO debug tags */}
+                  {/* PIXEL-PERFECT: DOM reordering with pixel-based click detection */}
                   {collageElements
                     .slice() // Create copy to avoid mutating original array
                     .sort((a, b) => a.zIndex - b.zIndex) // Sort by z-index - lower first, higher last (on top)
-                    .map((element) => {
-                    const elementId = `${element.id}-${element.x}-${element.y}`
-                    const isSelected = selectedElementId === elementId
-                    
-                    return (
-                      <div
-                        key={elementId}
-                        className={`collage-element absolute select-none transition-all duration-200 ease-out ${
-                          isSelected ? 'ring-2 ring-yellow-400 shadow-2xl' : ''
-                        } ${draggedCanvasElement === element ? 'opacity-90 scale-110' : ''}`}
-                        style={{
-                          left: `${element.x}%`,
-                          top: `${element.y}%`,
-                          transform: `translate3d(0, 0, 0) rotate(${element.rotation}deg) scale(${element.scale})`,
-                          opacity: draggedCanvasElement === element ? 0.9 : element.opacity,
-                          transformOrigin: 'center',
-                          cursor: 'pointer',
-                          pointerEvents: 'auto',
-                          willChange: draggedCanvasElement === element ? 'transform' : 'auto',
-                          backfaceVisibility: 'hidden'
-                        }}
-                        onTouchStart={(e) => handleElementTouchStart(e, element)}
-                      >
-                        <img
-                          src={element.file_url}
-                          alt={element.name}
-                          className="object-contain drop-shadow-lg pointer-events-none"
-                          loading="lazy"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none'
-                          }}
-                          style={{
-                            imageRendering: 'crisp-edges',
-                            transform: 'translate3d(0, 0, 0)',
-                            backfaceVisibility: 'hidden',
-                            display: 'block',
-                            maxWidth: '200px',
-                            maxHeight: '200px',
-                            width: 'auto',
-                            height: 'auto'
-                          }}
-                        />
-                        {isSelected && (
-                          <div className="absolute -top-2 -right-2 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg animate-pulse">
-                            <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
-                          </div>
-                        )}
-                        {/* REMOVED: Z-index debug indicator for clean interface */}
-                      </div>
-                    )
-                  })}
+                    .map((element) => (
+                      <PixelPerfectElement
+                        key={`${element.id}-${element.x}-${element.y}`}
+                        element={element}
+                        isSelected={selectedElementId === `${element.id}-${element.x}-${element.y}`}
+                        isDraggedElement={draggedCanvasElement === element}
+                      />
+                    ))}
                   
                   {collageElements.length === 0 && (
                     <div className="flex items-center justify-center h-full text-gray-400">
@@ -1070,7 +1111,7 @@ export default function CollageCreator() {
                   )}
                 </button>
                 <p className="text-xs text-gray-400 mt-2 text-center">
-                  Using {availableElements.length} loaded elements • SMOOTH DRAGGING ENABLED
+                  Using {availableElements.length} loaded elements • PIXEL-PERFECT CLICK DETECTION
                 </p>
               </div>
 
@@ -1119,7 +1160,7 @@ export default function CollageCreator() {
                   {/* PERFORMANCE TIP */}
                   {selectedCategory !== 'all' && filteredElements.length > 0 && (
                     <div className="text-xs text-green-400 mb-2 p-1 bg-green-900/20 border border-green-500/30 rounded">
-                      ⚡ {filteredElements.length} elements • DRAG anywhere freely on canvas
+                      🎯 {filteredElements.length} elements • PIXEL-PERFECT: Click only image content, drag anywhere!
                     </div>
                   )}
                   
@@ -1266,11 +1307,11 @@ export default function CollageCreator() {
               ) : collageElements.length > 0 ? (
                 <div className="border-t border-gray-800 pt-3">
                   <div className="bg-blue-900/30 border border-blue-600 rounded p-3 text-center">
-                    <h3 className="font-bold text-blue-400 mb-2 text-sm">🎯 SMOOTH DRAG TOOLS</h3>
+                    <h3 className="font-bold text-blue-400 mb-2 text-sm">🎯 PIXEL-PERFECT TOOLS</h3>
                     <div className="text-xs text-gray-300 space-y-1">
-                      <p><span className="text-yellow-400">CLICK IMAGE</span> to select • <span className="text-red-400">RIGHT-CLICK</span> to delete</p>
+                      <p><span className="text-yellow-400">CLICK IMAGE CONTENT</span> to select • <span className="text-red-400">RIGHT-CLICK</span> to delete</p>
                       <p><span className="text-green-400">DRAG ANYWHERE</span> to move freely • <span className="text-blue-400">DEL</span> key to remove</p>
-                      <p className="text-cyan-400">🚀 Drag to any position - no boundaries!</p>
+                      <p className="text-cyan-400">🎯 Only pixels respond - drag unrestricted!</p>
                     </div>
                   </div>
                 </div>
@@ -1362,11 +1403,11 @@ export default function CollageCreator() {
             <div className="text-xs text-gray-500 border-t border-gray-800 pt-4">
               <div className="text-center space-y-1">
                 <p className="font-bold text-gray-400">
-                  🚀 SMOOTH DRAGGING: {availableElements.length.toLocaleString()} ELEMENTS • {collageElements.length} ON CANVAS
+                  🎯 PIXEL-PERFECT DETECTION: {availableElements.length.toLocaleString()} ELEMENTS • {collageElements.length} ON CANVAS
                 </p>
-                <p className="text-gray-600">Drag elements anywhere freely - no more movement restrictions!</p>
-                <p className="text-yellow-400 font-semibold">💡 CLICK image content to select • Drag anywhere to move</p>
-                <p className="text-green-400">🎯 Pixel-perfect selection + unlimited drag freedom</p>
+                <p className="text-gray-600">Click detection follows actual pixels - drag anywhere freely!</p>
+                <p className="text-yellow-400 font-semibold">💡 CLICK image pixels only • DRAG unrestricted across canvas</p>
+                <p className="text-green-400">🎯 Perfect balance: Precise selection + unlimited movement</p>
               </div>
             </div>
           </div>
@@ -1374,7 +1415,7 @@ export default function CollageCreator() {
           {/* Right Panel - Interactive Canvas */}
           <div className="flex-1 bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden min-h-96 lg:min-h-screen">
             <div className="absolute top-4 right-4 bg-black text-white px-4 py-2 text-xs font-bold tracking-wide z-10 rounded">
-              SMOOTH DRAG CANVAS • 3:4 {zoom !== 1 && `• ${Math.round(zoom * 100)}%`}
+              PIXEL-PERFECT CANVAS • 3:4 {zoom !== 1 && `• ${Math.round(zoom * 100)}%`}
             </div>
             
             <div className="w-full h-full flex items-center justify-center p-4">
@@ -1422,82 +1463,18 @@ export default function CollageCreator() {
                     position: 'relative'
                   }}
                 >
-                  {/* CLEAN: DOM reordering with smooth dragging - NO debug tags */}
+                  {/* PIXEL-PERFECT: DOM reordering with pixel-based click detection */}
                   {collageElements
                     .slice() // Create copy to avoid mutating original array
                     .sort((a, b) => a.zIndex - b.zIndex) // Sort by z-index - higher z-index = later in DOM = on top
-                    .map((element) => {
-                    const elementId = `${element.id}-${element.x}-${element.y}`
-                    const isSelected = selectedElementId === elementId
-                    
-                    return (
-                      <div
-                        key={elementId}
-                        className={`collage-element absolute select-none transition-all duration-200 ease-out ${
-                          isSelected ? 'ring-2 ring-yellow-400 shadow-2xl' : 'hover:ring-1 hover:ring-blue-400'
-                        } ${draggedCanvasElement === element ? 'opacity-90 scale-110' : ''}`}
-                        style={{
-                          left: `${element.x}%`,
-                          top: `${element.y}%`,
-                          transform: `translate3d(0, 0, 0) rotate(${element.rotation}deg) scale(${element.scale})`,
-                          opacity: draggedCanvasElement === element ? 0.9 : element.opacity,
-                          transformOrigin: 'center',
-                          cursor: draggedCanvasElement === element ? 'grabbing' : (isSelected ? 'grab' : 'pointer'),
-                          pointerEvents: 'auto',
-                          willChange: draggedCanvasElement === element ? 'transform' : 'auto',
-                          backfaceVisibility: 'hidden',
-                        }}
-                        onMouseDown={(e) => handleElementMouseDown(e, element)}
-                        onClick={(e) => handleElementClick(e, element)}
-                        onContextMenu={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          if (!isMobile) {
-                            deleteElement(element)
-                          }
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!isSelected && !draggedCanvasElement) {
-                            const elementDiv = e.currentTarget as HTMLElement
-                            elementDiv.style.filter = 'brightness(1.1) drop-shadow(0 4px 12px rgba(59, 130, 246, 0.4))'
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!isSelected) {
-                            const elementDiv = e.currentTarget as HTMLElement
-                            elementDiv.style.filter = 'drop-shadow-lg'
-                          }
-                        }}
-                      >
-                        <img
-                          src={element.file_url}
-                          alt={element.name}
-                          className="object-contain drop-shadow-lg pointer-events-none"
-                          loading="lazy"
-                          onError={(e) => {
-                            e.currentTarget.style.opacity = '0.3'
-                            e.currentTarget.style.filter = 'grayscale(100%)'
-                          }}
-                          style={{
-                            imageRendering: 'crisp-edges',
-                            transform: 'translate3d(0, 0, 0)',
-                            backfaceVisibility: 'hidden',
-                            display: 'block',
-                            maxWidth: '300px',
-                            maxHeight: '300px',
-                            width: 'auto',
-                            height: 'auto'
-                          }}
-                        />
-                        {isSelected && (
-                          <div className="absolute -top-2 -right-2 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg pointer-events-none animate-pulse">
-                            <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
-                          </div>
-                        )}
-                        {/* REMOVED: Z-index debug indicator - clean interface! */}
-                      </div>
-                    )
-                  })}
+                    .map((element) => (
+                      <PixelPerfectElement
+                        key={`${element.id}-${element.x}-${element.y}`}
+                        element={element}
+                        isSelected={selectedElementId === `${element.id}-${element.x}-${element.y}`}
+                        isDraggedElement={draggedCanvasElement === element}
+                      />
+                    ))}
                   
                   {collageElements.length === 0 && (
                     <div className="flex items-center justify-center h-full text-gray-400">
@@ -1507,7 +1484,7 @@ export default function CollageCreator() {
                         </div>
                         <p className="text-xl lg:text-2xl mb-3 font-light">Ready to create?</p>
                         <p className="text-base lg:text-lg text-gray-500 mb-4">Generate inspiration to get started</p>
-                        <p className="text-sm text-blue-400">🚀 Now with smooth unlimited dragging!</p>
+                        <p className="text-sm text-blue-400">🎯 Now with pixel-perfect selection + unlimited dragging!</p>
                       </div>
                     </div>
                   )}
