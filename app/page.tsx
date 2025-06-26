@@ -802,13 +802,13 @@ export default function CollageCreator() {
                           top: `${element.y}%`,
                           transform: `translate3d(0, 0, 0) rotate(${element.rotation}deg) scale(${element.scale})`,
                           opacity: draggedCanvasElement === element ? 0.9 : element.opacity,
-                          zIndex: draggedCanvasElement === element ? 999 : element.zIndex,
+                          // FIXED: Use element's actual zIndex (preserves front position) + boost when dragging  
+                          zIndex: draggedCanvasElement === element ? element.zIndex + 1000 : element.zIndex,
                           transformOrigin: 'center',
                           cursor: 'pointer',
                           pointerEvents: 'auto',
                           willChange: draggedCanvasElement === element ? 'transform' : 'auto',
                           backfaceVisibility: 'hidden'
-                          // REMOVED: No size constraints - let image define bounds
                         }}
                         onTouchStart={(e) => {
                           e.stopPropagation()
@@ -1041,20 +1041,14 @@ export default function CollageCreator() {
                     <div className="flex gap-1">
                       <button
                         onClick={() => {
-                          const role = identifyElementRole(selectedElement)
-                          let maxZIndex: number
+                          // FIXED: Bring to ABSOLUTE FRONT just like clicking does
+                          const maxZIndex = collageElements.length > 0 
+                            ? Math.max(...collageElements.map(el => el.zIndex))
+                            : selectedElement.zIndex
                           
-                          if (role === 'sky') {
-                            maxZIndex = 4
-                          } else if (role === 'ground') {
-                            maxZIndex = 15
-                          } else if (role === 'midground') {
-                            maxZIndex = 25
-                          } else {
-                            maxZIndex = Math.max(...collageElements.filter(el => identifyElementRole(el) === 'foreground').map(el => el.zIndex)) + 10
-                          }
-                          
-                          updateElement(selectedElement, { zIndex: maxZIndex })
+                          const newZIndex = maxZIndex + 10
+                          updateElement(selectedElement, { zIndex: newZIndex })
+                          console.log(`🔝 TOP button: Brought ${selectedElement.name} to absolute front (${newZIndex})`)
                         }}
                         className="bg-blue-600 hover:bg-blue-700 px-2 py-1 text-xs font-semibold transition-colors"
                       >
@@ -1292,8 +1286,8 @@ export default function CollageCreator() {
                           top: `${element.y}%`,
                           transform: `translate3d(0, 0, 0) rotate(${element.rotation}deg) scale(${element.scale})`,
                           opacity: draggedCanvasElement === element ? 0.9 : element.opacity,
-                          // ENHANCED: Better z-index management for precise clicking
-                          zIndex: draggedCanvasElement === element ? 9999 : (isSelected ? 9998 : element.zIndex),
+                          // FIXED: Use element's actual zIndex (which gets updated on click) + boost when dragging
+                          zIndex: draggedCanvasElement === element ? element.zIndex + 1000 : element.zIndex,
                           transformOrigin: 'center',
                           // ENHANCED: Better cursor feedback for clickability
                           cursor: draggedCanvasElement === element ? 'grabbing' : (isSelected ? 'grab' : 'pointer'),
