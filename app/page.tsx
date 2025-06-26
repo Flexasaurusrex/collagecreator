@@ -185,14 +185,6 @@ export default function CollageMaker() {
     )
   }, [collageElements])
 
-  // Simple click to select (without dragging)
-  const handleElementClick = useCallback((e: React.MouseEvent, elementId: string) => {
-    e.stopPropagation()
-    bringToFront(elementId)
-    setSelectedElement(elementId)
-    console.log('👆 Clicked element, brought to front')
-  }, [bringToFront])
-
   // Mouse event handlers for dragging
   const handleMouseDown = useCallback((e: React.MouseEvent, elementId: string) => {
     e.preventDefault()
@@ -204,34 +196,13 @@ export default function CollageMaker() {
     // Always bring clicked element to front
     bringToFront(elementId)
     setSelectedElement(elementId)
+    setIsDragging(true)
     
-    // Only start dragging after a small delay to distinguish from clicks
-    const startX = e.clientX
-    const startY = e.clientY
-    
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      const deltaX = Math.abs(moveEvent.clientX - startX)
-      const deltaY = Math.abs(moveEvent.clientY - startY)
-      
-      // Start dragging only if mouse moved more than 3 pixels
-      if (deltaX > 3 || deltaY > 3) {
-        setIsDragging(true)
-        const rect = e.currentTarget.getBoundingClientRect()
-        setDragOffset({
-          x: e.clientX - rect.left,
-          y: e.clientY - rect.top
-        })
-        document.removeEventListener('mousemove', handleMouseMove)
-      }
-    }
-    
-    const handleMouseUp = () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-    }
-    
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
+    const rect = e.currentTarget.getBoundingClientRect()
+    setDragOffset({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    })
 
     console.log('🖱️ Mouse down on element:', element.name)
   }, [collageElements, bringToFront])
