@@ -79,7 +79,7 @@ const SmartImage = ({ element, isPriority, onClick }: { element: Element, isPrio
 
 export default function CollageMaker() {
   const [availableElements, setAvailableElements] = useState<Element[]>([])
-  const [collageElements, setCollageElements] = useState<CollageElement[]>([])
+  const [collageElements, setCollageElements] = useState<any[]>([])
   const [selectedElement, setSelectedElement] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
@@ -149,7 +149,7 @@ export default function CollageMaker() {
     const randomX = centerX + (Math.random() - 0.5) * 100
     const randomY = centerY + (Math.random() - 0.5) * 100
 
-    const newCollageElement: CollageElement = {
+    const newCollageElement = {
       id: `collage-${Date.now()}-${Math.random()}`,
       name: element.name,
       url: (element as any).url || (element as any).image || (element as any).file_path || '',
@@ -159,7 +159,7 @@ export default function CollageMaker() {
       height: 100,
       rotation: 0,
       zIndex: collageElements.length
-    }
+    } as CollageElement
 
     setCollageElements(prev => [...prev, newCollageElement])
     console.log('✅ Added element to canvas:', newCollageElement.name)
@@ -309,7 +309,7 @@ export default function CollageMaker() {
       const shuffled = [...filteredElements].sort(() => Math.random() - 0.5)
       const selectedElements = shuffled.slice(0, elementsToAdd)
       
-      const newElements: CollageElement[] = selectedElements.map((element, index) => ({
+      const newElements = selectedElements.map((element, index) => ({
         id: `inspiration-${Date.now()}-${index}`,
         name: element.name,
         url: (element as any).url || (element as any).image || (element as any).file_path || '',
@@ -319,7 +319,7 @@ export default function CollageMaker() {
         height: 80 + Math.random() * 60,
         rotation: (Math.random() - 0.5) * 30,
         zIndex: index
-      }))
+      })) as CollageElement[]
       
       setCollageElements(newElements)
       console.log(`✨ Generated inspiration with ${newElements.length} elements`)
@@ -495,7 +495,7 @@ export default function CollageMaker() {
                   />
                   
                   <img
-                    src={element.url}
+                    src={(element as any).url || ''}
                     alt={element.name}
                     className="w-full h-full object-cover rounded pointer-events-none relative z-0"
                     style={{
