@@ -567,8 +567,8 @@ export default function CollageCreator() {
   }
 
   const handleElementClick = (e: React.MouseEvent, element: CollageElement) => {
-    // ENHANCED: Completely stop all event propagation to prevent interference
-    e.stopImmediatePropagation()
+    // ENHANCED: Stop all event propagation to prevent interference
+    e.stopPropagation()
     e.preventDefault()
     
     // Right click to delete (desktop only)
@@ -602,8 +602,8 @@ export default function CollageCreator() {
   }
 
   const handleElementMouseDown = (e: React.MouseEvent, element: CollageElement) => {
-    // ENHANCED: Completely stop all event interference
-    e.stopImmediatePropagation()
+    // ENHANCED: Stop all event interference
+    e.stopPropagation()
     e.preventDefault()
     
     // Only handle dragging, not selection (selection handled by onClick)
@@ -1370,21 +1370,21 @@ export default function CollageCreator() {
                           minHeight: '24px'
                         }}
                         onMouseDown={(e) => {
-                          // ENHANCED: Prevent all event interference during drag start
-                          e.stopImmediatePropagation()
+                          // ENHANCED: Prevent event interference during drag start
+                          e.stopPropagation()
                           e.preventDefault()
                           handleElementMouseDown(e, element)
                         }}
                         onClick={(e) => {
                           // ENHANCED: Ensure only this element responds to clicks
-                          e.stopImmediatePropagation()
+                          e.stopPropagation()
                           e.preventDefault()
                           handleElementClick(e, element)
                         }}
                         onContextMenu={(e) => {
                           // ENHANCED: Precise right-click handling
                           e.preventDefault()
-                          e.stopImmediatePropagation()
+                          e.stopPropagation()
                           if (!isMobile) {
                             deleteElement(element)
                           }
