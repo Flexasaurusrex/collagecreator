@@ -79,7 +79,7 @@ const SmartImage = ({ element, isPriority, onClick }: { element: Element, isPrio
 
 export default function CollageMaker() {
   const [availableElements, setAvailableElements] = useState<Element[]>([])
-  const [collageElements, setCollageElements] = useState<any[]>([])
+  const [collageElements, setCollageElements] = useState<CollageElement[]>([])
   const [selectedElement, setSelectedElement] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
@@ -118,7 +118,7 @@ export default function CollageMaker() {
       setAvailableElements(filteredElements)
       setTotalElementCount(filteredElements.length)
       
-      const uniqueCategories = Array.from(new Set(filteredElements.map(el => el.category))).sort()
+      const uniqueCategories = [...new Set(filteredElements.map(el => el.category))].sort()
       setCategories(uniqueCategories)
       
       console.log(`✅ After filtering: ${filteredElements.length} elements, ${uniqueCategories.length} categories`)
@@ -149,8 +149,9 @@ export default function CollageMaker() {
     const randomX = centerX + (Math.random() - 0.5) * 100
     const randomY = centerY + (Math.random() - 0.5) * 100
 
-    const newCollageElement = {
+    const newCollageElement: CollageElement = {
       id: `collage-${Date.now()}-${Math.random()}`,
+      elementId: element.id,
       name: element.name,
       url: (element as any).url || (element as any).image || (element as any).file_path || '',
       x: Math.max(50, Math.min(randomX, canvasRect.width - 100)),
@@ -159,7 +160,7 @@ export default function CollageMaker() {
       height: 100,
       rotation: 0,
       zIndex: collageElements.length
-    } as CollageElement
+    }
 
     setCollageElements(prev => [...prev, newCollageElement])
     console.log('✅ Added element to canvas:', newCollageElement.name)
@@ -309,17 +310,18 @@ export default function CollageMaker() {
       const shuffled = [...filteredElements].sort(() => Math.random() - 0.5)
       const selectedElements = shuffled.slice(0, elementsToAdd)
       
-      const newElements = selectedElements.map((element, index) => ({
+      const newElements: CollageElement[] = selectedElements.map((element, index) => ({
         id: `inspiration-${Date.now()}-${index}`,
+        elementId: element.id,
         name: element.name,
-        url: (element as any).url || (element as any).image || (element as any).file_path || '',
+        url: element.image || element.path || element.file_url || element.asset_url || '',
         x: Math.random() * (canvasRect.width - 150),
         y: Math.random() * (canvasRect.height - 150),
         width: 80 + Math.random() * 60,
         height: 80 + Math.random() * 60,
         rotation: (Math.random() - 0.5) * 30,
         zIndex: index
-      })) as CollageElement[]
+      }))
       
       setCollageElements(newElements)
       console.log(`✨ Generated inspiration with ${newElements.length} elements`)
@@ -495,7 +497,7 @@ export default function CollageMaker() {
                   />
                   
                   <img
-                    src={(element as any).url || ''}
+                    src={element.url}
                     alt={element.name}
                     className="w-full h-full object-cover rounded pointer-events-none relative z-0"
                     style={{
