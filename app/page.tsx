@@ -24,10 +24,19 @@ export default function CollageCreator() {
   const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 })
   const canvasRef = useRef<HTMLDivElement>(null)
 
-  // Calculate selectedElement from selectedElementId
+  // Calculate selectedElement from selectedElementId - with debugging
   const selectedElement = selectedElementId 
     ? collageElements.find(el => `${el.id}-${el.x}-${el.y}` === selectedElementId)
     : null
+
+  // Debug logging for selection
+  useEffect(() => {
+    console.log('🔍 Selection state:', {
+      selectedElementId,
+      selectedElement: selectedElement?.name || 'none',
+      totalElements: collageElements.length
+    })
+  }, [selectedElementId, selectedElement, collageElements.length])
 
   useEffect(() => {
     loadElements()
@@ -300,16 +309,22 @@ export default function CollageCreator() {
       return
     }
     
-    // Left click to select and start drag
-    setSelectedElementId(`${element.id}-${element.x}-${element.y}`)
-    setDraggedCanvasElement(element)
+    // Left click to select
+    const elementId = `${element.id}-${element.x}-${element.y}`
+    console.log('🎯 Element clicked:', element.name, 'ID:', elementId)
+    setSelectedElementId(elementId)
     
-    const rect = canvasRef.current?.getBoundingClientRect()
-    if (rect) {
-      setDragOffset({
-        x: e.clientX - rect.left - (element.x / 100) * rect.width,
-        y: e.clientY - rect.top - (element.y / 100) * rect.height
-      })
+    // Start drag if not already dragging
+    if (!draggedCanvasElement) {
+      setDraggedCanvasElement(element)
+      
+      const rect = canvasRef.current?.getBoundingClientRect()
+      if (rect) {
+        setDragOffset({
+          x: e.clientX - rect.left - (element.x / 100) * rect.width,
+          y: e.clientY - rect.top - (element.y / 100) * rect.height
+        })
+      }
     }
   }
 
@@ -760,8 +775,8 @@ export default function CollageCreator() {
           <div className="text-center space-y-1">
             <p className="font-bold text-gray-400">{availableElements.length.toLocaleString()} ELEMENTS • {collageElements.length} ON CANVAS</p>
             <p className="text-gray-600">Generate inspiration, then create your masterpiece</p>
-            <p className="text-yellow-400 font-semibold">💡 CLICK elements to select & edit • DOUBLE-CLICK to delete</p>
-            <p className="text-gray-700">Drag from library or drag elements on canvas to move</p>
+            <p className="text-yellow-400 font-semibold">💡 SINGLE-CLICK elements to select & edit • DOUBLE-CLICK to delete</p>
+            <p className="text-gray-700">Check browser console for click debugging info</p>
           </div>
         </div>
       </div>
@@ -829,15 +844,24 @@ export default function CollageCreator() {
                       opacity: draggedCanvasElement === element ? 0.9 : element.opacity,
                       zIndex: draggedCanvasElement === element ? 999 : element.zIndex,
                       transformOrigin: 'center',
-                      cursor: isSelected ? 'grab' : 'pointer'
+                      cursor: isSelected ? 'grab' : 'pointer',
+                      pointerEvents: 'auto' // Ensure elements are clickable
                     }}
                     onMouseDown={(e) => handleElementMouseDown(e, element)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const elementId = `${element.id}-${element.x}-${element.y}`
+                      console.log('🎯 Element clicked (onClick):', element.name, 'ID:', elementId)
+                      setSelectedElementId(elementId)
+                    }}
                     onDoubleClick={(e) => {
                       e.stopPropagation()
+                      console.log('🗑️ Double-click delete:', element.name)
                       deleteElement(element)
                     }}
                     onContextMenu={(e) => {
                       e.preventDefault()
+                      console.log('🗑️ Right-click delete:', element.name)
                       deleteElement(element)
                     }}
                   >
@@ -856,16 +880,6 @@ export default function CollageCreator() {
                         <div className="w-2 h-2 bg-white rounded-full"></div>
                       </div>
                     )}
-                    {/* Layer indicator */}
-                    <div className="absolute -top-1 -left-1 text-xs font-bold px-1 rounded shadow-lg"
-                         style={{
-                           backgroundColor: identifyElementRole(element) === 'sky' ? '#3B82F6' : 
-                                          identifyElementRole(element) === 'ground' ? '#10B981' :
-                                          identifyElementRole(element) === 'midground' ? '#F59E0B' : '#EF4444',
-                           color: 'white'
-                         }}>
-                      {identifyElementRole(element).charAt(0).toUpperCase()}
-                    </div>
                   </div>
                 )
               })}
