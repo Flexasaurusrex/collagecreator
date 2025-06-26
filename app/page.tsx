@@ -821,8 +821,8 @@ export default function CollageCreator() {
           <div className="text-center space-y-1">
             <p className="font-bold text-gray-400">{availableElements.length.toLocaleString()} ELEMENTS • {collageElements.length} ON CANVAS</p>
             <p className="text-gray-600">Generate inspiration, then create your masterpiece</p>
-            <p className="text-yellow-400 font-semibold">💡 SINGLE-CLICK to select • DRAG anywhere (even off-canvas!)</p>
-            <p className="text-gray-700">DOUBLE-CLICK to delete • Elements can flow in/out from any edge</p>
+            <p className="text-yellow-400 font-semibold">💡 SINGLE-CLICK to select • DRAG anywhere (crops at canvas edges)</p>
+            <p className="text-gray-700">DOUBLE-CLICK to delete • Elements clip like real collages</p>
           </div>
         </div>
       </div>
@@ -841,7 +841,7 @@ export default function CollageCreator() {
               width: '100%',
               maxWidth: '600px',
               maxHeight: 'calc(100vh - 120px)',
-              overflow: 'visible', // Allow elements to extend beyond container
+              overflow: 'hidden', // Clip elements at canvas edges
               cursor: draggedCanvasElement ? 'grabbing' : zoom > 1 ? 'grab' : 'default'
             }}
             onMouseDown={(e) => {
@@ -874,7 +874,7 @@ export default function CollageCreator() {
                 willChange: isDragging || zoom !== 1 ? 'transform' : 'auto',
                 backfaceVisibility: 'hidden',
                 perspective: 1000,
-                overflow: 'visible' // Allow elements to extend beyond canvas bounds
+                overflow: 'hidden' // Clip elements at canvas boundaries
               }}
             >
               {collageElements.map((element, index) => {
