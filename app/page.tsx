@@ -596,7 +596,11 @@ export default function CollageCreator() {
   }
 
   const handleImageLoad = (elementId: string) => {
-    setLoadedImages(prev => new Set([...prev, elementId]))
+    setLoadedImages(prev => {
+      const newSet = new Set(prev)
+      newSet.add(elementId)
+      return newSet
+    })
   }
 
   const handleImageError = (elementId: string) => {
