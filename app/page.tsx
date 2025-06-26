@@ -146,32 +146,30 @@ export default function CollageRandomizer() {
     })
   }
 
-  // Smart element placement based on composition template
-  const getSmartPlacement = (template: any, elementType: string, isBackground: boolean, focalIndex?: number) => {
-    if (isBackground) {
-      // Background elements fill designated areas
-      const area = template.backgroundAreas[Math.floor(Math.random() * template.backgroundAreas.length)]
+  // AGGRESSIVE collage placement - FILL THE DAMN CANVAS!
+  const getCollageePlacement = (layerType: 'background' | 'midground' | 'foreground', template: any) => {
+    if (layerType === 'background') {
+      // MASSIVE background elements that DOMINATE the canvas
       return {
-        x: area.x + Math.random() * (area.width - 20),
-        y: area.y + Math.random() * (area.height - 20),
-        scale: 1.2 + Math.random() * 0.8, // Large backgrounds
-        rotation: (Math.random() - 0.5) * 20
+        x: -10 + Math.random() * 20, // Can go slightly off canvas
+        y: -10 + Math.random() * 20,
+        scale: 2.0 + Math.random() * 1.5, // HUGE elements (2x-3.5x normal)
+        rotation: (Math.random() - 0.5) * 30
       }
-    } else if (focalIndex !== undefined && template.focalPoints[focalIndex]) {
-      // Focal elements placed near focal points
-      const focal = template.focalPoints[focalIndex]
+    } else if (layerType === 'midground') {
+      // Medium elements that OVERLAP significantly
       return {
-        x: focal.x + (Math.random() - 0.5) * 30,
-        y: focal.y + (Math.random() - 0.5) * 30, 
-        scale: 0.8 + Math.random() * 0.6,
-        rotation: (Math.random() - 0.5) * 45
+        x: Math.random() * 60, // More concentrated placement
+        y: Math.random() * 70,
+        scale: 1.2 + Math.random() * 1.0, // Large overlapping elements
+        rotation: (Math.random() - 0.5) * 60
       }
     } else {
-      // Supporting elements scattered but following composition
+      // Foreground details - smaller but still substantial
       return {
-        x: 10 + Math.random() * 80,
-        y: 10 + Math.random() * 80,
-        scale: 0.4 + Math.random() * 0.8,
+        x: Math.random() * 90,
+        y: Math.random() * 90,
+        scale: 0.6 + Math.random() * 0.8, // Decent sized foreground
         rotation: (Math.random() - 0.5) * 90
       }
     }
@@ -217,77 +215,74 @@ export default function CollageRandomizer() {
       
       const elements: CollageElement[] = []
       
-      // STEP 1: Place background elements according to template
-      const backgroundCategories = template.layering.slice(0, 2) // First 2 categories are background
+      // STEP 1: Place MASSIVE background elements that DOMINATE the canvas
+      const backgroundCategories = template.layering.slice(0, 2)
       const bgElements = workingElements.filter(el => backgroundCategories.includes(el.category))
       
-      // Place 3-5 large background elements
-      const bgCount = Math.floor(Math.random() * 3) + 3
+      // Place 2-3 ENORMOUS background elements that fill most of the canvas
+      const bgCount = Math.floor(Math.random() * 2) + 2 // Just 2-3 massive elements
       for (let i = 0; i < bgCount && bgElements.length > 0; i++) {
         const element = bgElements[Math.floor(Math.random() * bgElements.length)]
-        const placement = getSmartPlacement(template, element.category, true)
+        const placement = getCollageePlacement('background', template)
         
         elements.push({
           ...element,
           ...placement,
-          opacity: 0.6 + Math.random() * 0.3,
-          zIndex: getTemplateZIndex(template, element.category, true),
+          opacity: 0.7 + Math.random() * 0.3, // Higher opacity
+          zIndex: 1 + Math.random() * 3,
           primary: true
         })
       }
       
-      // STEP 2: Place focal elements at designated focal points
-      const focalCategories = template.layering.slice(2, 4) // Middle categories for focal points
-      const focalElements = workingElements.filter(el => focalCategories.includes(el.category))
+      // STEP 2: Layer LOTS of overlapping midground elements
+      const midgroundCategories = template.layering.slice(1, 4)
+      const midElements = workingElements.filter(el => midgroundCategories.includes(el.category))
       
-      template.focalPoints.forEach((focal, index) => {
-        if (focalElements.length === 0) return
-        
-        // Place 1-2 elements per focal point
-        const focalCount = Math.floor(Math.random() * 2) + 1
-        for (let i = 0; i < focalCount; i++) {
-          const element = focalElements[Math.floor(Math.random() * focalElements.length)]
-          const placement = getSmartPlacement(template, element.category, false, index)
-          
-          elements.push({
-            ...element,
-            ...placement,
-            opacity: 0.8 + Math.random() * 0.2,
-            zIndex: getTemplateZIndex(template, element.category, false),
-            primary: true
-          })
-        }
-      })
-      
-      // STEP 3: Fill with supporting elements following template layering
-      const supportingCount = Math.floor(Math.random() * 15) + 20 // 20-34 supporting elements
-      for (let i = 0; i < supportingCount; i++) {
-        const element = workingElements[Math.floor(Math.random() * workingElements.length)]
-        const placement = getSmartPlacement(template, element.category, false)
+      // Dense midground layer - 8-12 overlapping elements
+      const midCount = Math.floor(Math.random() * 5) + 8
+      for (let i = 0; i < midCount && midElements.length > 0; i++) {
+        const element = midElements[Math.floor(Math.random() * midElements.length)]
+        const placement = getCollageePlacement('midground', template)
         
         elements.push({
           ...element,
           ...placement,
-          opacity: 0.4 + Math.random() * 0.6,
-          zIndex: getTemplateZIndex(template, element.category, false),
+          opacity: 0.6 + Math.random() * 0.4,
+          zIndex: 10 + Math.random() * 10,
+          primary: i < 4 // First 4 are primary
+        })
+      }
+      
+      // STEP 3: DENSE foreground details layer
+      const foregroundCount = Math.floor(Math.random() * 20) + 25 // 25-44 foreground elements!
+      for (let i = 0; i < foregroundCount; i++) {
+        const element = workingElements[Math.floor(Math.random() * workingElements.length)]
+        const placement = getCollageePlacement('foreground', template)
+        
+        elements.push({
+          ...element,
+          ...placement,
+          opacity: 0.5 + Math.random() * 0.5,
+          zIndex: 20 + Math.random() * 15,
           primary: false
         })
       }
       
-      // STEP 4: Add density layer for chaos template
+      // STEP 4: CHAOS MODE - absolute madness
+      let chaosCount = 0
       if (selectedTemplate === 'chaos') {
-        const chaosCount = Math.floor(Math.random() * 20) + 15
+        chaosCount = Math.floor(Math.random() * 30) + 30 // 30-59 MORE elements!
         for (let i = 0; i < chaosCount; i++) {
           const element = workingElements[Math.floor(Math.random() * workingElements.length)]
           
           elements.push({
             ...element,
-            x: Math.random() * 95,
-            y: Math.random() * 95,
-            scale: 0.3 + Math.random() * 0.9,
+            x: Math.random() * 100,
+            y: Math.random() * 100, 
+            scale: 0.8 + Math.random() * 1.5, // Wide range of scales
             rotation: Math.random() * 360,
             opacity: 0.3 + Math.random() * 0.7,
-            zIndex: Math.random() * 40,
+            zIndex: Math.random() * 50,
             primary: false
           })
         }
@@ -296,7 +291,10 @@ export default function CollageRandomizer() {
       // Sort by z-index for proper layering
       elements.sort((a, b) => a.zIndex - b.zIndex)
       
-      console.log(`Generated composition with ${elements.length} elements`)
+      console.log(`Generated DENSE collage: ${elements.length} elements (${bgCount} massive backgrounds, ${midCount} overlapping midgrounds, ${foregroundCount} dense foreground${chaosCount > 0 ? ` + ${chaosCount} chaos elements` : ''})`)
+      // Sort by z-index for proper layering
+      elements.sort((a, b) => a.zIndex - b.zIndex)
+      
       setCollageElements(elements)
       
     } catch (error) {
@@ -647,7 +645,7 @@ export default function CollageRandomizer() {
                   <img
                     src={element.file_url}
                     alt={element.name}
-                    className="max-w-24 max-h-24 lg:max-w-32 lg:max-h-32 object-contain"
+                    className="max-w-32 max-h-32 lg:max-w-48 lg:max-h-48 object-contain"
                     loading="eager"
                     crossOrigin="anonymous"
                   />
