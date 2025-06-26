@@ -84,80 +84,79 @@ export default function CollageRandomizer() {
     }
   }
 
-  // Professional collage placement following artistic principles
-  const getArtisticPlacement = (role: 'foundation' | 'focal' | 'supporting' | 'detail', elementType: string) => {
-    if (role === 'foundation') {
-      // 1-2 MASSIVE elements that define the scene
-      const isVertical = ['architecture', 'monuments', 'landscapes'].includes(elementType)
+  // FOUNDATIONAL collage placement following REAL composition rules
+  const getFoundationalPlacement = (role: 'sky' | 'ground' | 'midground' | 'foreground') => {
+    if (role === 'sky') {
+      // SKY: 1-2 elements filling TOP 30-40% of canvas, MASSIVE scale
       return {
-        x: -10 + Math.random() * 20,
-        y: isVertical ? 15 + Math.random() * 30 : -5 + Math.random() * 20,
-        scale: 3.0 + Math.random() * 1.5, // ENORMOUS foundation elements
-        rotation: isVertical ? (Math.random() - 0.5) * 8 : (Math.random() - 0.5) * 15,
+        x: -15 + Math.random() * 30, // Can extend beyond canvas for full coverage
+        y: -10 + Math.random() * 20, // TOP 30-40% only
+        scale: 4.0 + Math.random() * 2.0, // ENORMOUS sky elements (4x-6x)
+        rotation: (Math.random() - 0.5) * 8, // MINIMAL rotation (±4 degrees)
         opacity: 0.8 + Math.random() * 0.2,
-        zIndex: 1 + Math.random() * 3
+        zIndex: 1
       }
-    } else if (role === 'focal') {
-      // 3-5 key elements that tell the story
+    } else if (role === 'ground') {
+      // BUILDINGS/MONUMENTS/LANDSCAPES: BOTTOM 60-70%, MASSIVE scale, VERTICAL
       return {
-        x: 10 + Math.random() * 60,
-        y: 15 + Math.random() * 50,
-        scale: 1.5 + Math.random() * 1.0, // Large, important elements
-        rotation: (Math.random() - 0.5) * 45,
+        x: -15 + Math.random() * 30, // Can extend beyond for full coverage
+        y: 30 + Math.random() * 50, // BOTTOM 60-70% of canvas  
+        scale: 3.5 + Math.random() * 2.0, // MASSIVE ground elements (3.5x-5.5x)
+        rotation: (Math.random() - 0.5) * 8, // MAX ±4 degrees tilt
         opacity: 0.9 + Math.random() * 0.1,
-        zIndex: 15 + Math.random() * 10
+        zIndex: 2 + Math.random() * 2
       }
-    } else if (role === 'supporting') {
-      // 4-8 elements that add context and depth
+    } else if (role === 'midground') {
+      // Medium elements, smaller than background
       return {
-        x: Math.random() * 80,
-        y: Math.random() * 80,
-        scale: 0.8 + Math.random() * 0.8,
-        rotation: (Math.random() - 0.5) * 60,
-        opacity: 0.7 + Math.random() * 0.3,
-        zIndex: 25 + Math.random() * 15
+        x: 5 + Math.random() * 70,
+        y: 20 + Math.random() * 60,
+        scale: 1.8 + Math.random() * 1.0, // Medium scale (1.8x-2.8x)
+        rotation: (Math.random() - 0.5) * 30,
+        opacity: 0.8 + Math.random() * 0.2,
+        zIndex: 10 + Math.random() * 5
       }
     } else {
-      // Details that add texture without overwhelming
+      // FOREGROUND: SMALLEST elements, details and accents
       return {
-        x: Math.random() * 90,
-        y: Math.random() * 90,
-        scale: 0.4 + Math.random() * 0.6,
-        rotation: (Math.random() - 0.5) * 90,
-        opacity: 0.5 + Math.random() * 0.4,
-        zIndex: 40 + Math.random() * 10
+        x: 10 + Math.random() * 80,
+        y: 10 + Math.random() * 80,
+        scale: 0.8 + Math.random() * 0.8, // SMALL foreground (0.8x-1.6x)
+        rotation: (Math.random() - 0.5) * 60,
+        opacity: 0.7 + Math.random() * 0.3,
+        zIndex: 20 + Math.random() * 10
       }
     }
   }
 
-  // Smart element categorization for artistic placement
-  const categorizeForArt = (element: Element): 'foundation' | 'focal' | 'supporting' | 'detail' => {
+  // Enhanced element identification for proper foundational placement
+  const identifyFoundationalRole = (element: Element): 'sky' | 'ground' | 'midground' | 'foreground' => {
     const name = element.name.toLowerCase()
     const category = element.category.toLowerCase()
     
-    // Foundation elements (1-2 per collage) - define the scene
-    const foundationKeywords = ['sky', 'landscape', 'building', 'architecture', 'monument', 'cityscape']
-    if (foundationKeywords.some(k => name.includes(k)) || 
-        ['architecture', 'monuments', 'landscapes', 'sky'].includes(category)) {
-      return 'foundation'
+    // SKY elements - should fill top 30-40%
+    const skyKeywords = ['sky', 'cloud', 'sunset', 'sunrise', 'horizon', 'space', 'star', 'moon', 'sun', 'galaxy', 'nebula']
+    if (skyKeywords.some(keyword => name.includes(keyword)) || 
+        ['sky', 'space'].includes(category)) {
+      return 'sky'
     }
     
-    // Focal elements (3-5 per collage) - the main story
-    const focalKeywords = ['people', 'person', 'figure', 'animal', 'vehicle', 'car', 'plane']
-    if (focalKeywords.some(k => name.includes(k)) || 
-        ['people', 'animals', 'vehicles'].includes(category)) {
-      return 'focal'
+    // GROUND elements - should fill bottom 60-70% (buildings, monuments, landscapes)
+    const groundKeywords = ['building', 'monument', 'landscape', 'mountain', 'architecture', 'structure', 'city', 'tower', 'bridge', 'castle', 'temple', 'cathedral', 'skyscraper', 'house', 'church']
+    if (groundKeywords.some(keyword => name.includes(keyword)) || 
+        ['architecture', 'monuments', 'landscapes', 'buildings'].includes(category)) {
+      return 'ground'
     }
     
-    // Supporting elements (4-8 per collage) - context and depth  
-    const supportingKeywords = ['object', 'tool', 'furniture', 'statue', 'technology']
-    if (supportingKeywords.some(k => name.includes(k)) || 
-        ['objects', 'technology', 'statues'].includes(category)) {
-      return 'supporting'
+    // MIDGROUND elements - people, vehicles, large objects
+    const midgroundKeywords = ['people', 'person', 'figure', 'vehicle', 'car', 'truck', 'plane', 'ship', 'statue']
+    if (midgroundKeywords.some(keyword => name.includes(keyword)) || 
+        ['people', 'vehicles', 'statues'].includes(category)) {
+      return 'midground'
     }
     
-    // Everything else is detail
-    return 'detail'
+    // Everything else is FOREGROUND (smallest details)
+    return 'foreground'
   }
 
   const generateMasterpiece = async () => {
@@ -186,13 +185,16 @@ export default function CollageRandomizer() {
       
       const elements: CollageElement[] = []
       
-      // FOUNDATION LAYER - 1-2 massive scene-defining elements
-      const foundationElements = workingElements.filter(el => categorizeForArt(el) === 'foundation')
-      if (foundationElements.length > 0) {
-        const foundationCount = Math.random() > 0.7 ? 2 : 1 // Usually 1, sometimes 2
-        for (let i = 0; i < foundationCount; i++) {
-          const element = foundationElements[Math.floor(Math.random() * foundationElements.length)]
-          const placement = getArtisticPlacement('foundation', element.category)
+      // STEP 1: SKY FOUNDATION - 1-2 MASSIVE elements filling TOP 30-40%
+      const skyElements = workingElements.filter(el => identifyFoundationalRole(el) === 'sky')
+      let skyCount = 0
+      if (skyElements.length > 0) {
+        skyCount = Math.random() > 0.6 ? 2 : 1 // Usually 1, sometimes 2
+        console.log(`🌌 Placing ${skyCount} MASSIVE sky foundation elements (top 30-40%)`)
+        
+        for (let i = 0; i < skyCount; i++) {
+          const element = skyElements[Math.floor(Math.random() * skyElements.length)]
+          const placement = getFoundationalPlacement('sky')
           
           elements.push({
             ...element,
@@ -200,16 +202,18 @@ export default function CollageRandomizer() {
             primary: true
           })
         }
-        console.log(`Foundation: ${foundationCount} massive scene elements`)
       }
       
-      // FOCAL LAYER - 3-5 key story elements
-      const focalElements = workingElements.filter(el => categorizeForArt(el) === 'focal')
-      if (focalElements.length > 0) {
-        const focalCount = Math.floor(Math.random() * 3) + 3 // 3-5 focal elements
-        for (let i = 0; i < focalCount; i++) {
-          const element = focalElements[Math.floor(Math.random() * focalElements.length)]
-          const placement = getArtisticPlacement('focal', element.category)
+      // STEP 2: GROUND FOUNDATION - 1-2 MASSIVE elements filling BOTTOM 60-70%
+      const groundElements = workingElements.filter(el => identifyFoundationalRole(el) === 'ground')
+      let groundCount = 0
+      if (groundElements.length > 0) {
+        groundCount = Math.random() > 0.5 ? 2 : 1 // Usually 1-2 ground elements
+        console.log(`🏗️ Placing ${groundCount} MASSIVE ground foundation elements (bottom 60-70%, vertical orientation)`)
+        
+        for (let i = 0; i < groundCount; i++) {
+          const element = groundElements[Math.floor(Math.random() * groundElements.length)]
+          const placement = getFoundationalPlacement('ground')
           
           elements.push({
             ...element,
@@ -217,36 +221,41 @@ export default function CollageRandomizer() {
             primary: true
           })
         }
-        console.log(`Focal: ${focalCount} story elements`)
       }
       
-      // SUPPORTING LAYER - 4-8 context elements
-      const supportingElements = workingElements.filter(el => categorizeForArt(el) === 'supporting')
-      if (supportingElements.length > 0) {
-        const supportingCount = Math.floor(Math.random() * 5) + 4 // 4-8 supporting
-        for (let i = 0; i < supportingCount; i++) {
-          const element = supportingElements[Math.floor(Math.random() * supportingElements.length)]
-          const placement = getArtisticPlacement('supporting', element.category)
+      // STEP 3: MIDGROUND LAYER - Medium scale supporting elements
+      const midgroundElements = workingElements.filter(el => identifyFoundationalRole(el) === 'midground')
+      let midCount = 0
+      if (midgroundElements.length > 0) {
+        midCount = Math.floor(Math.random() * 4) + 2 // 2-5 midground elements
+        console.log(`🎯 Placing ${midCount} medium-scale midground elements`)
+        
+        for (let i = 0; i < midCount; i++) {
+          const element = midgroundElements[Math.floor(Math.random() * midgroundElements.length)]
+          const placement = getFoundationalPlacement('midground')
           
           elements.push({
             ...element,
             ...placement,
-            primary: false
+            primary: i === 0 // First one is primary
           })
         }
-        console.log(`Supporting: ${supportingCount} context elements`)
       }
       
-      // DETAIL LAYER - selective details for texture
-      const detailElements = workingElements.filter(el => categorizeForArt(el) === 'detail')
+      // STEP 4: FOREGROUND DETAILS - SMALLEST scale, selective placement
+      const foregroundElements = workingElements.filter(el => identifyFoundationalRole(el) === 'foreground')
       const targetTotal = Math.floor(Math.random() * (style.elementCount.max - style.elementCount.min + 1)) + style.elementCount.min
       const currentCount = elements.length
-      const detailsNeeded = Math.max(0, targetTotal - currentCount)
+      const foregroundNeeded = Math.max(0, Math.min(8, targetTotal - currentCount)) // Max 8 foreground details
       
-      if (detailElements.length > 0 && detailsNeeded > 0) {
-        for (let i = 0; i < detailsNeeded; i++) {
-          const element = detailElements[Math.floor(Math.random() * detailElements.length)]
-          const placement = getArtisticPlacement('detail', element.category)
+      let foregroundCount = 0
+      if (foregroundElements.length > 0 && foregroundNeeded > 0) {
+        foregroundCount = foregroundNeeded
+        console.log(`✨ Placing ${foregroundCount} small-scale foreground details`)
+        
+        for (let i = 0; i < foregroundCount; i++) {
+          const element = foregroundElements[Math.floor(Math.random() * foregroundElements.length)]
+          const placement = getFoundationalPlacement('foreground')
           
           elements.push({
             ...element,
@@ -254,13 +263,16 @@ export default function CollageRandomizer() {
             primary: false
           })
         }
-        console.log(`Details: ${detailsNeeded} texture elements`)
       }
       
-      // Sort by z-index for proper layering
+      // Sort by z-index for proper layering (background to foreground)
       elements.sort((a, b) => a.zIndex - b.zIndex)
       
-      console.log(`🔥 ${style.name} MASTERPIECE: ${elements.length} perfectly balanced elements`)
+      console.log(`🎨 ${style.name} FOUNDATIONAL MASTERPIECE:`)
+      console.log(`📐 Foundation: ${skyCount} sky (top 30-40%, 4x-6x scale) + ${groundCount} ground (bottom 60-70%, 3.5x-5.5x scale)`)
+      console.log(`🎯 Layers: ${midCount} midground (1.8x-2.8x) + ${foregroundCount} foreground details (0.8x-1.6x)`)
+      console.log(`🔥 Total: ${elements.length} elements with proper size hierarchy`)
+      
       setCollageElements(elements)
       
     } catch (error) {
@@ -555,7 +567,7 @@ export default function CollageRandomizer() {
                   <img
                     src={element.file_url}
                     alt={element.name}
-                    className="max-w-32 max-h-32 lg:max-w-40 lg:max-h-40 object-contain drop-shadow-lg"
+                    className="max-w-48 max-h-48 lg:max-w-64 lg:max-h-64 object-contain drop-shadow-lg"
                     loading="eager"
                     crossOrigin="anonymous"
                   />
