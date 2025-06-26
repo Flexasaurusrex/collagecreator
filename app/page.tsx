@@ -3,98 +3,60 @@
 import { useState, useRef, useEffect } from 'react'
 import { dbHelpers } from '@/lib/supabase'
 import { Element, CollageElement, SavedCollage } from '@/lib/types'
-import { Download, Save, History, Shuffle, Loader2, Palette, Layout } from 'lucide-react'
+import { Download, Save, Shuffle, Loader2, Sparkles, Zap, Palette, Globe, Rocket } from 'lucide-react'
 import html2canvas from 'html2canvas'
 
-// Compositional templates based on professional collage styles
-const COMPOSITION_TEMPLATES = {
-  landscape: {
-    name: "LANDSCAPE",
-    description: "Horizontal environmental scenes",
-    backgroundAreas: [
-      { x: 0, y: 0, width: 100, height: 40, priority: 'sky' },
-      { x: 0, y: 30, width: 100, height: 70, priority: 'ground' }
-    ],
-    focalPoints: [{ x: 65, y: 45 }, { x: 25, y: 55 }],
-    layering: ['nature', 'architecture', 'objects', 'people', 'animals']
+// PRESET COLLAGE STYLES - Each creates a unified, breathtaking composition
+const COLLAGE_STYLES = {
+  urban: {
+    name: "URBAN DREAMS",
+    icon: Globe,
+    description: "City life and human stories",
+    categories: ['architecture', 'people', 'vehicles', 'technology', 'objects'],
+    sceneType: 'urban',
+    elementCount: { min: 12, max: 18 },
+    color: 'from-blue-600 to-purple-600'
   },
-  portrait: {
-    name: "PORTRAIT", 
-    description: "Vertical figure compositions",
-    backgroundAreas: [
-      { x: 0, y: 0, width: 100, height: 100, priority: 'background' }
-    ],
-    focalPoints: [{ x: 50, y: 35 }, { x: 50, y: 65 }],
-    layering: ['nature', 'architecture', 'people', 'animals', 'objects']
+  nature: {
+    name: "WILD ESCAPE", 
+    icon: Sparkles,
+    description: "Natural world and adventure",
+    categories: ['nature', 'animals', 'sky', 'landscapes', 'vehicles'],
+    sceneType: 'natural',
+    elementCount: { min: 10, max: 16 },
+    color: 'from-green-600 to-blue-600'
   },
-  surreal: {
-    name: "SURREAL",
-    description: "Dreamlike impossible scenes", 
-    backgroundAreas: [
-      { x: 0, y: 0, width: 100, height: 60, priority: 'sky' },
-      { x: 0, y: 40, width: 100, height: 60, priority: 'ground' }
-    ],
-    focalPoints: [{ x: 50, y: 50 }],
-    layering: ['space', 'nature', 'architecture', 'abstract', 'objects']
+  retro: {
+    name: "RETRO VIBES",
+    icon: Zap,
+    description: "Vintage nostalgia and memories", 
+    categories: ['vintage', 'vehicles', 'people', 'objects', 'architecture'],
+    sceneType: 'nostalgic',
+    elementCount: { min: 14, max: 20 },
+    color: 'from-orange-600 to-red-600'
   },
-  vintage: {
-    name: "VINTAGE",
-    description: "Retro nostalgic compositions",
-    backgroundAreas: [
-      { x: 0, y: 0, width: 100, height: 100, priority: 'vintage' }
-    ],
-    focalPoints: [{ x: 30, y: 40 }, { x: 70, y: 60 }],
-    layering: ['vintage', 'vehicles', 'people', 'architecture', 'objects']
+  cosmic: {
+    name: "COSMIC SURREAL",
+    icon: Rocket,
+    description: "Dreamlike impossible worlds",
+    categories: ['space', 'abstract', 'monuments', 'explosions', 'nature'],
+    sceneType: 'surreal',
+    elementCount: { min: 8, max: 14 },
+    color: 'from-purple-600 to-pink-600'
   },
   chaos: {
-    name: "CHAOS",
-    description: "Dense overlapping collage",
-    backgroundAreas: [
-      { x: 0, y: 0, width: 100, height: 100, priority: 'mixed' }
-    ],
-    focalPoints: [{ x: 50, y: 50 }],
-    layering: ['nature', 'abstract', 'objects', 'people', 'animals', 'explosions']
-  }
-}
-
-// Color palettes that work well together
-const COLOR_PALETTES = {
-  warm: {
-    name: "WARM",
-    description: "Oranges, reds, yellows",
-    keywords: ['sunset', 'fire', 'desert', 'autumn', 'warm', 'orange', 'red', 'yellow']
-  },
-  cool: {
-    name: "COOL", 
-    description: "Blues, greens, purples",
-    keywords: ['sky', 'ocean', 'forest', 'blue', 'green', 'purple', 'cool', 'water']
-  },
-  monochrome: {
-    name: "MONO",
-    description: "Black, white, grays",
-    keywords: ['black', 'white', 'gray', 'mono', 'noir', 'vintage']
-  },
-  vibrant: {
-    name: "VIBRANT",
-    description: "Bright saturated colors",
-    keywords: ['neon', 'bright', 'vibrant', 'electric', 'pop', 'colorful']
-  },
-  earthy: {
-    name: "EARTHY",
-    description: "Browns, greens, naturals", 
-    keywords: ['earth', 'nature', 'brown', 'green', 'natural', 'organic']
-  },
-  mixed: {
-    name: "MIXED",
-    description: "All colors welcome",
-    keywords: []
+    name: "PURE CHAOS",
+    icon: Palette,
+    description: "Everything everywhere all at once",
+    categories: [], // Will use all available categories
+    sceneType: 'maximalist',
+    elementCount: { min: 20, max: 30 },
+    color: 'from-red-600 to-yellow-600'
   }
 }
 
 export default function CollageRandomizer() {
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
-  const [selectedTemplate, setSelectedTemplate] = useState('landscape')
-  const [selectedPalette, setSelectedPalette] = useState('mixed')
+  const [selectedStyle, setSelectedStyle] = useState('urban')
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
@@ -117,242 +79,192 @@ export default function CollageRandomizer() {
       
       const uniqueCategories = Array.from(new Set(elements.map(el => el.category))).sort()
       setCategories(uniqueCategories)
-      
-      // Auto-select first few categories
-      setSelectedCategories(uniqueCategories.slice(0, 3))
     } catch (error) {
       console.error('Error loading elements:', error)
     }
   }
 
-  const toggleCategory = (category: string) => {
-    setSelectedCategories(prev => 
-      prev.includes(category) 
-        ? prev.filter(c => c !== category)
-        : [...prev, category]
-    )
-  }
-
-  // Filter elements by color palette using filename/tag analysis
-  const filterByColorPalette = (elements: Element[], palette: string): Element[] => {
-    if (palette === 'mixed') return elements
-    
-    const paletteData = COLOR_PALETTES[palette as keyof typeof COLOR_PALETTES]
-    if (!paletteData || paletteData.keywords.length === 0) return elements
-    
-    return elements.filter(element => {
-      const searchText = `${element.name} ${element.tags.join(' ')}`.toLowerCase()
-      return paletteData.keywords.some(keyword => searchText.includes(keyword))
-    })
-  }
-
-  // FOUNDATIONAL collage placement following REAL collage logic
-  const getFoundationPlacement = (elementType: 'sky' | 'ground' | 'midground' | 'foreground') => {
-    if (elementType === 'sky') {
-      // SKY: 1-2 elements filling TOP 30-40% of canvas, minimal rotation
+  // Professional collage placement following artistic principles
+  const getArtisticPlacement = (role: 'foundation' | 'focal' | 'supporting' | 'detail', elementType: string) => {
+    if (role === 'foundation') {
+      // 1-2 MASSIVE elements that define the scene
+      const isVertical = ['architecture', 'monuments', 'landscapes'].includes(elementType)
       return {
-        x: -5 + Math.random() * 10, // Can extend slightly beyond canvas
-        y: 0 + Math.random() * 15, // TOP portion only
-        scale: 2.5 + Math.random() * 1.0, // MASSIVE sky elements
-        rotation: (Math.random() - 0.5) * 10 // MINIMAL rotation (±5 degrees)
+        x: -10 + Math.random() * 20,
+        y: isVertical ? 15 + Math.random() * 30 : -5 + Math.random() * 20,
+        scale: 3.0 + Math.random() * 1.5, // ENORMOUS foundation elements
+        rotation: isVertical ? (Math.random() - 0.5) * 8 : (Math.random() - 0.5) * 15,
+        opacity: 0.8 + Math.random() * 0.2,
+        zIndex: 1 + Math.random() * 3
       }
-    } else if (elementType === 'ground') {
-      // BUILDINGS/MONUMENTS/LANDSCAPES: BOTTOM 60-70%, VERTICAL orientation
+    } else if (role === 'focal') {
+      // 3-5 key elements that tell the story
       return {
-        x: -5 + Math.random() * 10,
-        y: 30 + Math.random() * 40, // BOTTOM 60-70% of canvas
-        scale: 2.0 + Math.random() * 1.5, // Large foundational elements
-        rotation: (Math.random() - 0.5) * 8 // VERY minimal tilt (±4 degrees)
+        x: 10 + Math.random() * 60,
+        y: 15 + Math.random() * 50,
+        scale: 1.5 + Math.random() * 1.0, // Large, important elements
+        rotation: (Math.random() - 0.5) * 45,
+        opacity: 0.9 + Math.random() * 0.1,
+        zIndex: 15 + Math.random() * 10
       }
-    } else if (elementType === 'midground') {
-      // Supporting elements that work with the foundation
+    } else if (role === 'supporting') {
+      // 4-8 elements that add context and depth
       return {
-        x: Math.random() * 70,
-        y: 20 + Math.random() * 60, // Middle area overlapping both zones
-        scale: 1.0 + Math.random() * 1.0,
-        rotation: (Math.random() - 0.5) * 45
+        x: Math.random() * 80,
+        y: Math.random() * 80,
+        scale: 0.8 + Math.random() * 0.8,
+        rotation: (Math.random() - 0.5) * 60,
+        opacity: 0.7 + Math.random() * 0.3,
+        zIndex: 25 + Math.random() * 15
       }
     } else {
-      // Foreground details scattered throughout
+      // Details that add texture without overwhelming
       return {
         x: Math.random() * 90,
         y: Math.random() * 90,
-        scale: 0.5 + Math.random() * 0.8,
-        rotation: (Math.random() - 0.5) * 90
+        scale: 0.4 + Math.random() * 0.6,
+        rotation: (Math.random() - 0.5) * 90,
+        opacity: 0.5 + Math.random() * 0.4,
+        zIndex: 40 + Math.random() * 10
       }
     }
   }
 
-  // Identify element types for proper foundational placement
-  const identifyElementType = (element: Element): 'sky' | 'ground' | 'other' => {
+  // Smart element categorization for artistic placement
+  const categorizeForArt = (element: Element): 'foundation' | 'focal' | 'supporting' | 'detail' => {
     const name = element.name.toLowerCase()
     const category = element.category.toLowerCase()
     
-    // SKY elements
-    const skyKeywords = ['sky', 'cloud', 'sunset', 'sunrise', 'horizon', 'space', 'star', 'moon', 'sun']
-    if (skyKeywords.some(keyword => name.includes(keyword)) || 
-        ['space'].includes(category)) {
-      return 'sky'
+    // Foundation elements (1-2 per collage) - define the scene
+    const foundationKeywords = ['sky', 'landscape', 'building', 'architecture', 'monument', 'cityscape']
+    if (foundationKeywords.some(k => name.includes(k)) || 
+        ['architecture', 'monuments', 'landscapes', 'sky'].includes(category)) {
+      return 'foundation'
     }
     
-    // GROUND elements (buildings, monuments, landscapes)
-    const groundKeywords = ['building', 'monument', 'landscape', 'mountain', 'architecture', 'structure', 'city', 'tower', 'bridge']
-    if (groundKeywords.some(keyword => name.includes(keyword)) || 
-        ['architecture', 'monuments', 'landscapes'].includes(category)) {
-      return 'ground'
+    // Focal elements (3-5 per collage) - the main story
+    const focalKeywords = ['people', 'person', 'figure', 'animal', 'vehicle', 'car', 'plane']
+    if (focalKeywords.some(k => name.includes(k)) || 
+        ['people', 'animals', 'vehicles'].includes(category)) {
+      return 'focal'
     }
     
-    return 'other'
-  }
-
-  // Get z-index based on template layering order
-  const getTemplateZIndex = (template: any, category: string, isBackground: boolean): number => {
-    if (isBackground) return 1 + Math.random() * 3
+    // Supporting elements (4-8 per collage) - context and depth  
+    const supportingKeywords = ['object', 'tool', 'furniture', 'statue', 'technology']
+    if (supportingKeywords.some(k => name.includes(k)) || 
+        ['objects', 'technology', 'statues'].includes(category)) {
+      return 'supporting'
+    }
     
-    const layerIndex = template.layering.indexOf(category)
-    const baseZ = layerIndex >= 0 ? layerIndex * 5 + 10 : 25
-    return baseZ + Math.random() * 4
+    // Everything else is detail
+    return 'detail'
   }
 
-  const generateCollage = async () => {
+  const generateMasterpiece = async () => {
     if (availableElements.length === 0) {
       alert('No elements available. Please upload some elements first.')
       return
     }
     
-    if (selectedCategories.length === 0) {
-      alert('Please select at least one category.')
-      return
-    }
-    
     setIsGenerating(true)
-    await new Promise(resolve => setTimeout(resolve, 1200))
+    await new Promise(resolve => setTimeout(resolve, 800)) // Dramatic pause
     
     try {
-      const template = COMPOSITION_TEMPLATES[selectedTemplate as keyof typeof COMPOSITION_TEMPLATES]
-      console.log(`Generating ${template.name} composition with palette: ${selectedPalette}`)
+      const style = COLLAGE_STYLES[selectedStyle as keyof typeof COLLAGE_STYLES]
+      console.log(`🎨 Generating ${style.name} masterpiece...`)
       
-      // Filter available elements by selected categories and color palette
-      let workingElements = availableElements.filter(el => selectedCategories.includes(el.category))
-      workingElements = filterByColorPalette(workingElements, selectedPalette)
-      
-      console.log(`Working with ${workingElements.length} elements from categories:`, selectedCategories)
+      // Get working elements for this style
+      let workingElements = availableElements
+      if (style.categories.length > 0) {
+        workingElements = availableElements.filter(el => style.categories.includes(el.category))
+      }
       
       if (workingElements.length === 0) {
-        alert('No elements found for selected categories and color palette. Try different selections.')
+        alert(`No elements found for ${style.name}. Upload more diverse content.`)
         return
       }
       
       const elements: CollageElement[] = []
       
-      // STEP 1: FOUNDATION - Place SKY elements (1-2 max, TOP 30-40%)
-      const skyElements = workingElements.filter(el => identifyElementType(el) === 'sky')
-      if (skyElements.length > 0) {
-        const skyCount = Math.floor(Math.random() * 2) + 1 // 1-2 sky elements max
-        for (let i = 0; i < skyCount; i++) {
-          const element = skyElements[Math.floor(Math.random() * skyElements.length)]
-          const placement = getFoundationPlacement('sky')
+      // FOUNDATION LAYER - 1-2 massive scene-defining elements
+      const foundationElements = workingElements.filter(el => categorizeForArt(el) === 'foundation')
+      if (foundationElements.length > 0) {
+        const foundationCount = Math.random() > 0.7 ? 2 : 1 // Usually 1, sometimes 2
+        for (let i = 0; i < foundationCount; i++) {
+          const element = foundationElements[Math.floor(Math.random() * foundationElements.length)]
+          const placement = getArtisticPlacement('foundation', element.category)
           
           elements.push({
             ...element,
             ...placement,
-            opacity: 0.8 + Math.random() * 0.2,
-            zIndex: 1 + i, // Sky is lowest layer
             primary: true
           })
         }
-        console.log(`Placed ${skyCount} SKY foundation elements`)
+        console.log(`Foundation: ${foundationCount} massive scene elements`)
       }
       
-      // STEP 2: FOUNDATION - Place GROUND elements (buildings/monuments/landscapes, BOTTOM 60-70%)
-      const groundElements = workingElements.filter(el => identifyElementType(el) === 'ground')
-      if (groundElements.length > 0) {
-        const groundCount = Math.floor(Math.random() * 3) + 2 // 2-4 ground elements
-        for (let i = 0; i < groundCount; i++) {
-          const element = groundElements[Math.floor(Math.random() * groundElements.length)]
-          const placement = getFoundationPlacement('ground')
+      // FOCAL LAYER - 3-5 key story elements
+      const focalElements = workingElements.filter(el => categorizeForArt(el) === 'focal')
+      if (focalElements.length > 0) {
+        const focalCount = Math.floor(Math.random() * 3) + 3 // 3-5 focal elements
+        for (let i = 0; i < focalCount; i++) {
+          const element = focalElements[Math.floor(Math.random() * focalElements.length)]
+          const placement = getArtisticPlacement('focal', element.category)
           
           elements.push({
             ...element,
             ...placement,
-            opacity: 0.8 + Math.random() * 0.2,
-            zIndex: 5 + i, // Ground layer above sky
             primary: true
           })
         }
-        console.log(`Placed ${groundCount} GROUND foundation elements`)
+        console.log(`Focal: ${focalCount} story elements`)
       }
       
-      // STEP 3: MIDGROUND - Supporting elements that work with foundation
-      const otherElements = workingElements.filter(el => identifyElementType(el) === 'other')
-      const midCount = Math.floor(Math.random() * 8) + 6 // 6-13 midground elements
-      for (let i = 0; i < midCount && otherElements.length > 0; i++) {
-        const element = otherElements[Math.floor(Math.random() * otherElements.length)]
-        const placement = getFoundationPlacement('midground')
-        
-        elements.push({
-          ...element,
-          ...placement,
-          opacity: 0.6 + Math.random() * 0.4,
-          zIndex: 15 + Math.random() * 10,
-          primary: i < 3 // First 3 are primary
-        })
-      }
-      
-      // STEP 4: FOREGROUND - Dense details layer
-      const foregroundCount = Math.floor(Math.random() * 20) + 15 // 15-34 foreground elements
-      for (let i = 0; i < foregroundCount; i++) {
-        const element = workingElements[Math.floor(Math.random() * workingElements.length)]
-        const placement = getFoundationPlacement('foreground')
-        
-        elements.push({
-          ...element,
-          ...placement,
-          opacity: 0.5 + Math.random() * 0.5,
-          zIndex: 30 + Math.random() * 15,
-          primary: false
-        })
-      }
-      
-      // STEP 5: CHAOS MODE - additional madness if selected
-      let chaosCount = 0
-      if (selectedTemplate === 'chaos') {
-        chaosCount = Math.floor(Math.random() * 25) + 20 // 20-44 MORE chaos elements!
-        for (let i = 0; i < chaosCount; i++) {
-          const element = workingElements[Math.floor(Math.random() * workingElements.length)]
+      // SUPPORTING LAYER - 4-8 context elements
+      const supportingElements = workingElements.filter(el => categorizeForArt(el) === 'supporting')
+      if (supportingElements.length > 0) {
+        const supportingCount = Math.floor(Math.random() * 5) + 4 // 4-8 supporting
+        for (let i = 0; i < supportingCount; i++) {
+          const element = supportingElements[Math.floor(Math.random() * supportingElements.length)]
+          const placement = getArtisticPlacement('supporting', element.category)
           
           elements.push({
             ...element,
-            x: Math.random() * 100,
-            y: Math.random() * 100, 
-            scale: 0.6 + Math.random() * 1.2, // Wide range of scales
-            rotation: Math.random() * 360, // Full chaos rotation
-            opacity: 0.3 + Math.random() * 0.7,
-            zIndex: Math.random() * 60, // Can appear anywhere in stack
+            ...placement,
             primary: false
           })
         }
-        console.log(`Added ${chaosCount} CHAOS elements for maximum density`)
+        console.log(`Supporting: ${supportingCount} context elements`)
+      }
+      
+      // DETAIL LAYER - selective details for texture
+      const detailElements = workingElements.filter(el => categorizeForArt(el) === 'detail')
+      const targetTotal = Math.floor(Math.random() * (style.elementCount.max - style.elementCount.min + 1)) + style.elementCount.min
+      const currentCount = elements.length
+      const detailsNeeded = Math.max(0, targetTotal - currentCount)
+      
+      if (detailElements.length > 0 && detailsNeeded > 0) {
+        for (let i = 0; i < detailsNeeded; i++) {
+          const element = detailElements[Math.floor(Math.random() * detailElements.length)]
+          const placement = getArtisticPlacement('detail', element.category)
+          
+          elements.push({
+            ...element,
+            ...placement,
+            primary: false
+          })
+        }
+        console.log(`Details: ${detailsNeeded} texture elements`)
       }
       
       // Sort by z-index for proper layering
       elements.sort((a, b) => a.zIndex - b.zIndex)
       
-      const skyCount = elements.filter(el => identifyElementType(el) === 'sky').length
-      const groundCount = elements.filter(el => identifyElementType(el) === 'ground').length
-      
-      console.log(`Generated FOUNDATIONAL collage: ${elements.length} total elements`)
-      console.log(`Foundation: ${skyCount} sky (top 30-40%) + ${groundCount} ground (bottom 60-70%)`)
-      console.log(`Layers: ${midCount} midground + ${foregroundCount} foreground${chaosCount > 0 ? ` + ${chaosCount} chaos` : ''}`)
-      
-      setCollageElements(elements)
-      // Sort by z-index for proper layering
-      elements.sort((a, b) => a.zIndex - b.zIndex)
-      
+      console.log(`🔥 ${style.name} MASTERPIECE: ${elements.length} perfectly balanced elements`)
       setCollageElements(elements)
       
     } catch (error) {
-      console.error('Error generating collage:', error)
+      console.error('Error generating masterpiece:', error)
       alert('Error generating collage. Please try again.')
     } finally {
       setIsGenerating(false)
@@ -361,14 +273,15 @@ export default function CollageRandomizer() {
 
   const saveCollage = async () => {
     if (collageElements.length === 0) {
-      alert('Generate a collage first!')
+      alert('Generate a masterpiece first!')
       return
     }
     
     setIsSaving(true)
     
     try {
-      const title = `${COMPOSITION_TEMPLATES[selectedTemplate as keyof typeof COMPOSITION_TEMPLATES].name} • ${COLOR_PALETTES[selectedPalette as keyof typeof COLOR_PALETTES].name}`
+      const style = COLLAGE_STYLES[selectedStyle as keyof typeof COLLAGE_STYLES]
+      const title = `${style.name} Masterpiece`
       
       await dbHelpers.saveCollage({
         prompt: title,
@@ -376,7 +289,7 @@ export default function CollageRandomizer() {
         title: title
       })
       
-      alert('Collage saved successfully!')
+      alert('Masterpiece saved!')
     } catch (error) {
       console.error('Error saving collage:', error)
       alert('Error saving collage. Please try again.')
@@ -387,7 +300,7 @@ export default function CollageRandomizer() {
 
   const exportCollage = async () => {
     if (!canvasRef.current || collageElements.length === 0) {
-      alert('Generate a collage first!')
+      alert('Generate a masterpiece first!')
       return
     }
     
@@ -396,7 +309,7 @@ export default function CollageRandomizer() {
     try {
       const canvas = await html2canvas(canvasRef.current, {
         backgroundColor: '#ffffff',
-        scale: 2,
+        scale: 3, // Ultra high resolution
         useCORS: true,
         allowTaint: true,
         logging: false,
@@ -404,135 +317,90 @@ export default function CollageRandomizer() {
         height: canvasRef.current.offsetHeight
       })
       
-      const template = COMPOSITION_TEMPLATES[selectedTemplate as keyof typeof COMPOSITION_TEMPLATES]
-      const palette = COLOR_PALETTES[selectedPalette as keyof typeof COLOR_PALETTES]
+      const style = COLLAGE_STYLES[selectedStyle as keyof typeof COLLAGE_STYLES]
       
       const link = document.createElement('a')
-      link.download = `collage-${template.name.toLowerCase()}-${palette.name.toLowerCase()}-${Date.now()}.png`
+      link.download = `${style.name.toLowerCase().replace(/\s+/g, '-')}-masterpiece-${Date.now()}.png`
       link.href = canvas.toDataURL('image/png', 1.0)
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
       
     } catch (error) {
-      console.error('Error exporting collage:', error)
-      alert('Error exporting collage. Please try again.')
+      console.error('Error exporting masterpiece:', error)
+      alert('Error exporting masterpiece. Please try again.')
     } finally {
       setIsExporting(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-white flex flex-col lg:flex-row">
-      {/* Left Panel - Controls */}
-      <div className="w-full lg:w-1/3 bg-black text-white p-6 lg:p-8 flex flex-col">
+    <div className="min-h-screen bg-black text-white flex flex-col lg:flex-row">
+      {/* Left Panel - Pure Magic Controls */}
+      <div className="w-full lg:w-1/3 bg-black p-6 lg:p-8 flex flex-col">
         <div className="mb-8">
-          <h1 className="text-3xl lg:text-4xl font-bold mb-2 tracking-tight">COLLAGE</h1>
-          <h2 className="text-xl lg:text-2xl font-light tracking-wider">COMPOSER</h2>
-          <div className="w-16 h-1 bg-red-600 mt-4"></div>
+          <h1 className="text-3xl lg:text-4xl font-bold mb-2 tracking-tight bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">
+            COLLAGE
+          </h1>
+          <h2 className="text-xl lg:text-2xl font-light tracking-wider text-gray-300">
+            MASTERPIECE GENERATOR
+          </h2>
+          <div className="w-16 h-1 bg-gradient-to-r from-red-600 to-orange-600 mt-4"></div>
         </div>
         
         <div className="flex-1 space-y-6">
-          {/* Composition Template */}
+          {/* Style Selection */}
           <div>
-            <label className="form-label flex items-center gap-2">
-              <Layout size={16} />
-              COMPOSITION STYLE
+            <label className="text-sm font-bold mb-4 block text-gray-400 tracking-wide">
+              CHOOSE YOUR ARTISTIC VISION
             </label>
-            <div className="grid grid-cols-1 gap-2 mt-2">
-              {Object.entries(COMPOSITION_TEMPLATES).map(([key, template]) => (
-                <button
-                  key={key}
-                  onClick={() => setSelectedTemplate(key)}
-                  className={`p-3 text-left border transition-colors ${
-                    selectedTemplate === key 
-                      ? 'bg-red-600 border-red-600 text-white' 
-                      : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
-                  }`}
-                >
-                  <div className="font-bold text-sm">{template.name}</div>
-                  <div className="text-xs opacity-75">{template.description}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Color Palette */}
-          <div>
-            <label className="form-label flex items-center gap-2">
-              <Palette size={16} />
-              COLOR PALETTE
-            </label>
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              {Object.entries(COLOR_PALETTES).map(([key, palette]) => (
-                <button
-                  key={key}
-                  onClick={() => setSelectedPalette(key)}
-                  className={`p-2 text-left border transition-colors ${
-                    selectedPalette === key 
-                      ? 'bg-yellow-600 border-yellow-600 text-black' 
-                      : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
-                  }`}
-                >
-                  <div className="font-bold text-xs">{palette.name}</div>
-                  <div className="text-xs opacity-75">{palette.description}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Category Selection */}
-          <div>
-            <label className="form-label">
-              CATEGORIES ({selectedCategories.length} selected)
-            </label>
-            <div className="max-h-48 overflow-y-auto border border-gray-700 bg-gray-900 p-2 mt-2">
-              <div className="space-y-1">
-                {categories.map(category => (
-                  <label key={category} className="flex items-center gap-2 p-2 hover:bg-gray-800 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedCategories.includes(category)}
-                      onChange={() => toggleCategory(category)}
-                      className="w-4 h-4 accent-red-600"
-                    />
-                    <span className="text-sm capitalize">
-                      {category} ({availableElements.filter(el => el.category === category).length})
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="flex gap-2 mt-2">
-              <button
-                onClick={() => setSelectedCategories(categories)}
-                className="bg-gray-800 px-3 py-1 text-xs hover:bg-gray-700"
-              >
-                SELECT ALL
-              </button>
-              <button
-                onClick={() => setSelectedCategories([])}
-                className="bg-gray-800 px-3 py-1 text-xs hover:bg-gray-700"
-              >
-                CLEAR ALL
-              </button>
+            <div className="space-y-3">
+              {Object.entries(COLLAGE_STYLES).map(([key, style]) => {
+                const IconComponent = style.icon
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setSelectedStyle(key)}
+                    className={`w-full p-4 text-left border-2 transition-all duration-300 group ${
+                      selectedStyle === key 
+                        ? `bg-gradient-to-r ${style.color} border-transparent text-white shadow-xl transform scale-105` 
+                        : 'bg-gray-900 border-gray-700 text-gray-300 hover:border-gray-600 hover:bg-gray-800'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <IconComponent size={24} className={selectedStyle === key ? 'text-white' : 'text-gray-400'} />
+                      <div>
+                        <div className="font-bold text-lg">{style.name}</div>
+                        <div className={`text-sm ${selectedStyle === key ? 'text-gray-100' : 'text-gray-500'}`}>
+                          {style.description}
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
             </div>
           </div>
           
+          {/* The Magic Button */}
           <button
-            onClick={generateCollage}
-            disabled={isGenerating || availableElements.length === 0 || selectedCategories.length === 0}
-            className="w-full btn-primary p-4 text-lg disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            onClick={generateMasterpiece}
+            disabled={isGenerating || availableElements.length === 0}
+            className={`w-full p-6 text-xl font-bold transition-all duration-300 disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-3 ${
+              isGenerating 
+                ? 'bg-gray-600' 
+                : `bg-gradient-to-r ${COLLAGE_STYLES[selectedStyle as keyof typeof COLLAGE_STYLES].color} hover:shadow-2xl hover:scale-105 transform`
+            }`}
           >
             {isGenerating ? (
               <>
-                <Loader2 className="animate-spin" size={20} />
-                COMPOSING...
+                <Loader2 className="animate-spin" size={24} />
+                CREATING MAGIC...
               </>
             ) : (
               <>
-                <Shuffle size={20} />
-                GENERATE COMPOSITION
+                <Sparkles size={24} />
+                GENERATE MASTERPIECE
               </>
             )}
           </button>
@@ -542,24 +410,24 @@ export default function CollageRandomizer() {
             <button
               onClick={saveCollage}
               disabled={collageElements.length === 0 || isSaving}
-              className="btn-secondary p-3 flex items-center justify-center gap-2 disabled:bg-gray-600 disabled:cursor-not-allowed"
+              className="bg-gray-800 hover:bg-gray-700 p-4 flex items-center justify-center gap-2 disabled:bg-gray-600 disabled:cursor-not-allowed transition-all duration-300 font-semibold"
             >
               {isSaving ? (
-                <Loader2 className="animate-spin" size={16} />
+                <Loader2 className="animate-spin" size={18} />
               ) : (
-                <Save size={16} />
+                <Save size={18} />
               )}
               SAVE
             </button>
             <button
               onClick={exportCollage}
               disabled={collageElements.length === 0 || isExporting}
-              className="btn-secondary p-3 flex items-center justify-center gap-2 disabled:bg-gray-600 disabled:cursor-not-allowed"
+              className="bg-gray-800 hover:bg-gray-700 p-4 flex items-center justify-center gap-2 disabled:bg-gray-600 disabled:cursor-not-allowed transition-all duration-300 font-semibold"
             >
               {isExporting ? (
-                <Loader2 className="animate-spin" size={16} />
+                <Loader2 className="animate-spin" size={18} />
               ) : (
-                <Download size={16} />
+                <Download size={18} />
               )}
               EXPORT
             </button>
@@ -567,23 +435,23 @@ export default function CollageRandomizer() {
 
           {/* Zoom Controls */}
           {collageElements.length > 0 && (
-            <div className="border-t border-gray-800 pt-4">
-              <h3 className="font-bold mb-3 tracking-wide text-red-400">COMPOSITION</h3>
+            <div className="border-t border-gray-800 pt-6">
+              <h3 className="font-bold mb-3 tracking-wide text-gray-400">FINE-TUNE YOUR MASTERPIECE</h3>
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium w-12">ZOOM:</span>
+                  <span className="text-sm font-medium w-12 text-gray-400">ZOOM:</span>
                   <button
                     onClick={() => setZoom(Math.max(0.5, zoom - 0.1))}
-                    className="bg-gray-800 px-3 py-1 text-sm hover:bg-gray-700"
+                    className="bg-gray-800 px-3 py-2 text-sm hover:bg-gray-700 transition-colors"
                   >
                     -
                   </button>
-                  <span className="bg-gray-800 px-3 py-1 text-sm min-w-16 text-center">
+                  <span className="bg-gray-800 px-3 py-2 text-sm min-w-16 text-center">
                     {Math.round(zoom * 100)}%
                   </span>
                   <button
                     onClick={() => setZoom(Math.min(3, zoom + 0.1))}
-                    className="bg-gray-800 px-3 py-1 text-sm hover:bg-gray-700"
+                    className="bg-gray-800 px-3 py-2 text-sm hover:bg-gray-700 transition-colors"
                   >
                     +
                   </button>
@@ -593,34 +461,27 @@ export default function CollageRandomizer() {
                     setZoom(1)
                     setPan({ x: 0, y: 0 })
                   }}
-                  className="w-full bg-gray-800 p-2 text-sm hover:bg-gray-700"
+                  className="w-full bg-gray-800 p-3 text-sm hover:bg-gray-700 transition-colors font-semibold"
                 >
                   RESET VIEW
                 </button>
-                <p className="text-xs text-gray-400">
-                  Fine-tune composition before export
-                </p>
               </div>
             </div>
           )}
 
           {/* Current Selection Display */}
-          {selectedCategories.length > 0 && (
+          {collageElements.length > 0 && (
             <div className="border-t border-gray-800 pt-4">
-              <h3 className="font-bold mb-3 tracking-wide text-green-400">ACTIVE SELECTION</h3>
-              <div className="space-y-2">
-                <div className="text-sm">
-                  <span className="text-gray-400">Style:</span> {COMPOSITION_TEMPLATES[selectedTemplate as keyof typeof COMPOSITION_TEMPLATES].name}
+              <h3 className="font-bold mb-3 tracking-wide text-green-400">MASTERPIECE STATS</h3>
+              <div className="space-y-2 text-sm">
+                <div>
+                  <span className="text-gray-400">Style:</span> {COLLAGE_STYLES[selectedStyle as keyof typeof COLLAGE_STYLES].name}
                 </div>
-                <div className="text-sm">
-                  <span className="text-gray-400">Palette:</span> {COLOR_PALETTES[selectedPalette as keyof typeof COLOR_PALETTES].name}
+                <div>
+                  <span className="text-gray-400">Elements:</span> {collageElements.length} perfectly balanced
                 </div>
-                <div className="flex flex-wrap gap-1">
-                  {selectedCategories.map(category => (
-                    <span key={category} className="bg-green-600 px-2 py-1 text-xs font-bold rounded-sm">
-                      {category.toUpperCase()}
-                    </span>
-                  ))}
+                <div>
+                  <span className="text-gray-400">Primary:</span> {collageElements.filter(el => el.primary).length} focal points
                 </div>
               </div>
             </div>
@@ -628,28 +489,22 @@ export default function CollageRandomizer() {
         </div>
         
         <div className="text-xs text-gray-500 border-t border-gray-800 pt-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="font-bold">ELEMENTS: {availableElements.length.toLocaleString()}</p>
-              <p>CATEGORIES: {categories.length}</p>
-            </div>
-            <div>
-              <p className="font-bold">ACTIVE: {collageElements.length}</p>
-              <p>PRIMARY: {collageElements.filter(el => el.primary).length}</p>
-            </div>
+          <div className="text-center">
+            <p className="font-bold text-gray-400">{availableElements.length.toLocaleString()} ELEMENTS READY</p>
+            <p className="text-gray-600">One click. Pure magic. 🔥</p>
           </div>
         </div>
       </div>
 
-      {/* Right Panel - Canvas */}
-      <div className="flex-1 bg-gray-100 relative overflow-hidden min-h-96 lg:min-h-screen">
-        <div className="absolute top-4 right-4 bg-black text-white px-3 py-1 text-xs font-bold tracking-wide z-10">
-          PORTRAIT • 3:4 {zoom !== 1 && `• ${Math.round(zoom * 100)}%`}
+      {/* Right Panel - The Canvas */}
+      <div className="flex-1 bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden min-h-96 lg:min-h-screen">
+        <div className="absolute top-4 right-4 bg-black text-white px-4 py-2 text-xs font-bold tracking-wide z-10 rounded">
+          MASTERPIECE CANVAS • 3:4 {zoom !== 1 && `• ${Math.round(zoom * 100)}%`}
         </div>
         
         <div className="w-full h-full flex items-center justify-center p-4">
           <div 
-            className="relative"
+            className="relative shadow-2xl"
             style={{ 
               aspectRatio: '3/4', 
               width: '100%',
@@ -677,34 +532,35 @@ export default function CollageRandomizer() {
           >
             <div 
               ref={canvasRef}
-              className="collage-canvas bg-white shadow-2xl relative w-full h-full"
+              className="collage-canvas bg-white relative w-full h-full"
               style={{
                 transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
                 transformOrigin: 'center',
-                transition: isDragging ? 'none' : 'transform 0.2s ease-out'
+                transition: isDragging ? 'none' : 'transform 0.3s ease-out'
               }}
             >
               {collageElements.map((element, index) => (
                 <div
                   key={`${element.id}-${index}-${element.x}-${element.y}`}
-                  className={`collage-element ${element.primary ? 'primary' : 'secondary'}`}
+                  className="collage-element absolute"
                   style={{
                     left: `${element.x}%`,
                     top: `${element.y}%`,
                     transform: `rotate(${element.rotation}deg) scale(${element.scale})`,
                     opacity: element.opacity,
                     zIndex: element.zIndex,
+                    transformOrigin: 'center'
                   }}
                 >
                   <img
                     src={element.file_url}
                     alt={element.name}
-                    className="max-w-32 max-h-32 lg:max-w-48 lg:max-h-48 object-contain"
+                    className="max-w-32 max-h-32 lg:max-w-40 lg:max-h-40 object-contain drop-shadow-lg"
                     loading="eager"
                     crossOrigin="anonymous"
                   />
                   {element.primary && (
-                    <div className="absolute -top-1 -right-1 w-2 h-2 lg:w-3 lg:h-3 bg-red-600 rounded-full"></div>
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-r from-red-500 to-orange-500 rounded-full shadow-lg"></div>
                   )}
                 </div>
               ))}
@@ -712,12 +568,12 @@ export default function CollageRandomizer() {
               {collageElements.length === 0 && (
                 <div className="flex items-center justify-center h-full text-gray-400">
                   <div className="text-center p-8">
-                    <div className="text-4xl lg:text-6xl mb-4">◯</div>
-                    <p className="text-lg lg:text-xl mb-2">Select categories and style</p>
-                    <p className="text-sm lg:text-base">then generate your composition</p>
+                    <Sparkles className="mx-auto mb-4 text-gray-300" size={64} />
+                    <p className="text-xl lg:text-2xl mb-3 font-light">Ready to create magic?</p>
+                    <p className="text-base lg:text-lg text-gray-500 mb-4">Choose your style and generate a masterpiece</p>
                     {availableElements.length === 0 && (
-                      <p className="text-xs text-red-400 mt-4">
-                        No elements available. Visit <a href="/admin" className="underline">admin</a> to upload.
+                      <p className="text-sm text-red-400">
+                        No elements available. Visit <a href="/admin" className="underline hover:text-red-300">admin</a> to upload.
                       </p>
                     )}
                   </div>
@@ -729,4 +585,4 @@ export default function CollageRandomizer() {
       </div>
     </div>
   )
-}
+}'
