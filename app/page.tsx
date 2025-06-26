@@ -153,7 +153,7 @@ export default function CollageMaker() {
       id: `collage-${Date.now()}-${Math.random()}`,
       elementId: element.id,
       name: element.name,
-      url: element.image || element.path || element.file_url || element.asset_url || '',
+      url: element.image_url || element.imageUrl || element.src || '',
       x: Math.max(50, Math.min(randomX, canvasRect.width - 100)),
       y: Math.max(50, Math.min(randomY, canvasRect.height - 100)),
       width: 100,
