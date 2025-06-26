@@ -43,7 +43,7 @@ const SmartImage = ({ element, isPriority, onClick }: { element: Element, isPrio
     >
       {shouldLoad ? (
         <img
-          src={element.image_url || element.imageUrl || element.src}
+          src={(element as any).url || (element as any).image || (element as any).file_path || ''}
           alt={element.name}
           className="w-full h-full object-cover"
           onLoad={() => setLoaded(true)}
@@ -153,7 +153,7 @@ export default function CollageMaker() {
       id: `collage-${Date.now()}-${Math.random()}`,
       elementId: element.id,
       name: element.name,
-      url: element.image_url || element.imageUrl || element.src || '',
+      url: (element as any).url || (element as any).image || (element as any).file_path || '',
       x: Math.max(50, Math.min(randomX, canvasRect.width - 100)),
       y: Math.max(50, Math.min(randomY, canvasRect.height - 100)),
       width: 100,
@@ -314,7 +314,7 @@ export default function CollageMaker() {
         id: `inspiration-${Date.now()}-${index}`,
         elementId: element.id,
         name: element.name,
-        url: element.image_url || element.imageUrl || element.src || '',
+        url: element.image || element.path || element.file_url || element.asset_url || '',
         x: Math.random() * (canvasRect.width - 150),
         y: Math.random() * (canvasRect.height - 150),
         width: 80 + Math.random() * 60,
