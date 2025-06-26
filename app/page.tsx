@@ -844,10 +844,10 @@ export default function CollageCreator() {
                             imageRendering: 'crisp-edges',
                             transform: 'translate3d(0, 0, 0)',
                             backfaceVisibility: 'hidden',
-                            // HUGGING BOUNDS: Natural image sizing
+                            // FIXED: Reasonable size limits for mobile while maintaining precise bounds
                             display: 'block',
-                            maxWidth: 'none',
-                            maxHeight: 'none',
+                            maxWidth: '200px', // Restore reasonable max size for mobile
+                            maxHeight: '200px',
                             width: 'auto',
                             height: 'auto'
                           }}
@@ -1356,10 +1356,10 @@ export default function CollageCreator() {
                             imageRendering: 'crisp-edges',
                             transform: 'translate3d(0, 0, 0)',
                             backfaceVisibility: 'hidden',
-                            // HUGGING BOUNDS: Let the image define its own size naturally
+                            // FIXED: Reasonable size limits while maintaining precise bounds
                             display: 'block',
-                            maxWidth: 'none',
-                            maxHeight: 'none',
+                            maxWidth: '300px', // Restore reasonable max size for desktop
+                            maxHeight: '300px',
                             width: 'auto',
                             height: 'auto'
                           }}
