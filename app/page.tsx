@@ -522,25 +522,31 @@ export default function CollageCreator() {
     console.log('🎯 Element clicked:', element.name, 'Current Z-Index:', element.zIndex)
     setSelectedElementId(elementId)
     
-    // AGGRESSIVE: Get current max z-index and force element to absolute front
+    // NUCLEAR: Get ALL z-indexes and set this element WAY higher
     const allZIndexes = collageElements.map(el => el.zIndex)
     const maxZIndex = Math.max(...allZIndexes, 0)
-    const newZIndex = maxZIndex + 50 // Big jump to ensure it's clearly on top
+    const newZIndex = maxZIndex + 1000 // MASSIVE jump to guarantee front position
     
     console.log('📊 All current z-indexes:', allZIndexes)
-    console.log(`🚀 Moving ${element.name} from z-index ${element.zIndex} to ${newZIndex}`)
+    console.log('🔥 Max z-index found:', maxZIndex)
+    console.log(`🚀 NUCLEAR UPDATE: Moving ${element.name} from z-index ${element.zIndex} to ${newZIndex}`)
     
-    // FORCE UPDATE: Update the element immediately and aggressively
+    // NUCLEAR UPDATE: Force the element to absolute front with massive z-index
     setCollageElements(prev => {
       const updated = prev.map(el => {
         if (el.id === element.id && el.x === element.x && el.y === element.y) {
           const updatedElement = { ...el, zIndex: newZIndex }
-          console.log('✅ Updated element:', updatedElement.name, 'new z-index:', updatedElement.zIndex)
+          console.log('✅ NUCLEAR UPDATE COMPLETE:', updatedElement.name, 'new z-index:', updatedElement.zIndex)
           return updatedElement
         }
         return el
       })
-      console.log('🔄 New elements array z-indexes:', updated.map(el => ({ name: el.name, z: el.zIndex })))
+      
+      // VERIFICATION: Log all z-indexes after update
+      const finalZIndexes = updated.map(el => ({ name: el.name, z: el.zIndex }))
+      console.log('🔄 FINAL z-indexes after nuclear update:', finalZIndexes)
+      console.log('👑 HIGHEST element should be:', element.name, 'with z-index:', newZIndex)
+      
       return updated
     })
   }
@@ -814,8 +820,9 @@ export default function CollageCreator() {
                           top: `${element.y}%`,
                           transform: `translate3d(0, 0, 0) rotate(${element.rotation}deg) scale(${element.scale})`,
                           opacity: draggedCanvasElement === element ? 0.9 : element.opacity,
-                          // AGGRESSIVE: Always use element's current zIndex + massive boost when dragging
+                          // NUCLEAR: Force z-index with CSS position to ensure stacking context  
                           zIndex: draggedCanvasElement === element ? element.zIndex + 10000 : element.zIndex,
+                          position: 'absolute', // Ensure z-index works properly
                           transformOrigin: 'center',
                           cursor: 'pointer',
                           pointerEvents: 'auto',
@@ -862,6 +869,10 @@ export default function CollageCreator() {
                             <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
                           </div>
                         )}
+                        {/* NUCLEAR DEBUG: Show z-index visually for debugging */}
+                        <div className="absolute top-0 left-0 bg-black bg-opacity-75 text-white text-xs px-1 py-0.5 pointer-events-none">
+                          z:{Math.round(element.zIndex)}
+                        </div>
                       </div>
                     )
                   })}
@@ -1302,8 +1313,9 @@ export default function CollageCreator() {
                           top: `${element.y}%`,
                           transform: `translate3d(0, 0, 0) rotate(${element.rotation}deg) scale(${element.scale})`,
                           opacity: draggedCanvasElement === element ? 0.9 : element.opacity,
-                          // AGGRESSIVE: Always use element's current zIndex + massive boost when dragging
+                          // NUCLEAR: Force z-index with CSS position to ensure stacking context
                           zIndex: draggedCanvasElement === element ? element.zIndex + 10000 : element.zIndex,
+                          position: 'absolute', // Ensure z-index works properly
                           transformOrigin: 'center',
                           cursor: draggedCanvasElement === element ? 'grabbing' : (isSelected ? 'grab' : 'pointer'),
                           pointerEvents: 'auto',
@@ -1370,6 +1382,10 @@ export default function CollageCreator() {
                             <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
                           </div>
                         )}
+                        {/* NUCLEAR DEBUG: Show z-index visually for debugging */}
+                        <div className="absolute top-0 left-0 bg-black bg-opacity-75 text-white text-xs px-1 py-0.5 pointer-events-none">
+                          z:{Math.round(element.zIndex)}
+                        </div>
                       </div>
                     )
                   })}
