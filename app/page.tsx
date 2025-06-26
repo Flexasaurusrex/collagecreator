@@ -60,6 +60,7 @@ const SmartImage = ({ element, isPriority, onClick }: { element: Element, isPrio
         </div>
       )}
       
+      {/* Loading/error indicators */}
       {shouldLoad && (
         <div className="absolute bottom-1 left-1">
           {!loaded && !error && <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />}
@@ -68,6 +69,7 @@ const SmartImage = ({ element, isPriority, onClick }: { element: Element, isPrio
         </div>
       )}
 
+      {/* Hover overlay */}
       <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all flex items-center justify-center">
         <div className="transform scale-0 group-hover:scale-100 transition-transform">
           <Plus className="text-white w-6 h-6" />
@@ -78,6 +80,7 @@ const SmartImage = ({ element, isPriority, onClick }: { element: Element, isPrio
 }
 
 export default function CollageMaker() {
+  // State management
   const [availableElements, setAvailableElements] = useState<Element[]>([])
   const [collageElements, setCollageElements] = useState<CollageElement[]>([])
   const [selectedElement, setSelectedElement] = useState<string | null>(null)
@@ -94,6 +97,7 @@ export default function CollageMaker() {
 
   const canvasRef = useRef<HTMLDivElement>(null)
 
+  // Detect mobile
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768)
     checkMobile()
@@ -101,6 +105,7 @@ export default function CollageMaker() {
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
+  // Load elements from database
   const loadElements = async () => {
     try {
       setIsLoadingElements(true)
@@ -109,6 +114,7 @@ export default function CollageMaker() {
       const allElements = await dbHelpers.getAllElements()
       console.log(`✅ Loaded ${allElements.length} total elements`)
       
+      // Filter out mock categories
       const filteredElements = allElements.filter(el => {
         const category = el.category?.toLowerCase() || ''
         const mockCategories = ['explosions', 'nature', 'statues']
@@ -134,11 +140,13 @@ export default function CollageMaker() {
     loadElements()
   }, [])
 
+  // Filter elements by category
   const filteredElements = useMemo(() => {
     if (selectedCategory === 'all') return availableElements
     return availableElements.filter(element => element.category === selectedCategory)
   }, [availableElements, selectedCategory])
 
+  // Add element to canvas - FIXED FUNCTIONALITY
   const addElementToCanvas = useCallback((element: Element) => {
     if (!canvasRef.current) return
 
@@ -146,6 +154,7 @@ export default function CollageMaker() {
     const centerX = canvasRect.width / 2
     const centerY = canvasRect.height / 2
     
+    // Add some randomness to prevent stacking
     const randomX = centerX + (Math.random() - 0.5) * 100
     const randomY = centerY + (Math.random() - 0.5) * 100
 
@@ -166,6 +175,7 @@ export default function CollageMaker() {
     console.log('✅ Added element to canvas:', newCollageElement.name)
   }, [collageElements.length])
 
+  // Bring element to front when clicked
   const bringToFront = useCallback((elementId: string) => {
     const maxZ = Math.max(...collageElements.map(el => el.zIndex), 0)
     setCollageElements(prev =>
@@ -175,6 +185,15 @@ export default function CollageMaker() {
     )
   }, [collageElements])
 
+  // Simple click to select (without dragging)
+  const handleElementClick = useCallback((e: React.MouseEvent, elementId: string) => {
+    e.stopPropagation()
+    bringToFront(elementId)
+    setSelectedElement(elementId)
+    console.log('👆 Clicked element, brought to front')
+  }, [bringToFront])
+
+  // Mouse event handlers for dragging
   const handleMouseDown = useCallback((e: React.MouseEvent, elementId: string) => {
     e.preventDefault()
     e.stopPropagation()
@@ -182,9 +201,11 @@ export default function CollageMaker() {
     const element = collageElements.find(el => el.id === elementId)
     if (!element) return
 
+    // Always bring clicked element to front
     bringToFront(elementId)
     setSelectedElement(elementId)
     
+    // Only start dragging after a small delay to distinguish from clicks
     const startX = e.clientX
     const startY = e.clientY
     
@@ -192,6 +213,7 @@ export default function CollageMaker() {
       const deltaX = Math.abs(moveEvent.clientX - startX)
       const deltaY = Math.abs(moveEvent.clientY - startY)
       
+      // Start dragging only if mouse moved more than 3 pixels
       if (deltaX > 3 || deltaY > 3) {
         setIsDragging(true)
         const rect = e.currentTarget.getBoundingClientRect()
@@ -241,12 +263,14 @@ export default function CollageMaker() {
     }
   }, [isDragging])
 
+  // Touch handlers for mobile
   const handleTouchStart = useCallback((e: React.TouchEvent, elementId: string) => {
     e.preventDefault()
     const touch = e.touches[0]
     const element = collageElements.find(el => el.id === elementId)
     if (!element) return
 
+    // Always bring touched element to front
     bringToFront(elementId)
     setSelectedElement(elementId)
     setIsDragging(true)
@@ -284,22 +308,26 @@ export default function CollageMaker() {
     setIsDragging(false)
   }, [])
 
+  // Delete element (right-click or double-tap)
   const deleteElement = useCallback((elementId: string) => {
     setCollageElements(prev => prev.filter(el => el.id !== elementId))
     setSelectedElement(null)
     console.log('🗑️ Deleted element')
   }, [])
 
+  // Clear canvas
   const clearCanvas = useCallback(() => {
     setCollageElements([])
     setSelectedElement(null)
   }, [])
 
+  // Generate inspiration collage
   const generateInspiration = useCallback(async () => {
     setIsGenerating(true)
     try {
       clearCanvas()
       
+      // Wait a bit for clear to process
       await new Promise(resolve => setTimeout(resolve, 100))
       
       if (!canvasRef.current) return
@@ -307,6 +335,7 @@ export default function CollageMaker() {
       const canvasRect = canvasRef.current.getBoundingClientRect()
       const elementsToAdd = Math.min(8, filteredElements.length)
       
+      // Select random elements
       const shuffled = [...filteredElements].sort(() => Math.random() - 0.5)
       const selectedElements = shuffled.slice(0, elementsToAdd)
       
@@ -333,30 +362,26 @@ export default function CollageMaker() {
     }
   }, [filteredElements])
 
+  // Load more elements
   const loadMoreElements = useCallback(async () => {
     setIsLoadingMore(true)
-    await new Promise(resolve => setTimeout(resolve, 300))
+    await new Promise(resolve => setTimeout(resolve, 300)) // Simulate loading
     
     const increment = isMobile ? 12 : 18
     setVisibleElementsCount(prev => prev + increment)
     setIsLoadingMore(false)
   }, [isMobile])
 
+  // Reset visible count when category changes
   useEffect(() => {
     setVisibleElementsCount(isMobile ? 18 : 24)
   }, [selectedCategory, isMobile])
-
-  const handleCanvasClick = useCallback((e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      setSelectedElement(null)
-      console.log('👆 Clicked canvas, deselected element')
-    }
-  }, [])
 
   const hasMoreElements = visibleElementsCount < filteredElements.length
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Compact Header */}
       <header className="bg-white border-b border-gray-200 px-4 py-3">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-800">Collage Creator</h1>
@@ -369,7 +394,9 @@ export default function CollageMaker() {
       </header>
 
       <div className="flex h-[calc(100vh-60px)]">
+        {/* Compact Tools Panel */}
         <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+          {/* Compact Controls */}
           <div className="p-3 border-b border-gray-200">
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -390,6 +417,7 @@ export default function CollageMaker() {
             </div>
           </div>
 
+          {/* Compact Category Filter */}
           <div className="p-3 border-b border-gray-200">
             <select
               value={selectedCategory}
@@ -408,6 +436,7 @@ export default function CollageMaker() {
             </select>
           </div>
 
+          {/* Elements Grid */}
           <div className="flex-1 overflow-y-auto p-3">
             {isLoadingElements ? (
               <div className="flex items-center justify-center h-32">
@@ -448,6 +477,116 @@ export default function CollageMaker() {
           </div>
         </div>
 
+  // Canvas click to deselect
+  const handleCanvasClick = useCallback((e: React.MouseEvent) => {
+    // Only deselect if clicking on empty canvas (not on an element)
+    if (e.target === e.currentTarget) {
+      setSelectedElement(null)
+      console.log('👆 Clicked canvas, deselected element')
+    }
+  }, [])
+
+  const hasMoreElements = visibleElementsCount < filteredElements.length
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Compact Header */}
+      <header className="bg-white border-b border-gray-200 px-4 py-3">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold text-gray-800">Collage Creator</h1>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">
+              {totalElementCount} elements available
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <div className="flex h-[calc(100vh-60px)]">
+        {/* Compact Tools Panel */}
+        <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+          {/* Compact Controls */}
+          <div className="p-3 border-b border-gray-200">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={generateInspiration}
+                disabled={isGenerating || filteredElements.length === 0}
+                className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 text-sm"
+              >
+                {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                Inspire
+              </button>
+              <button
+                onClick={clearCanvas}
+                className="flex items-center justify-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+              >
+                <Trash2 className="w-4 h-4" />
+                Clear
+              </button>
+            </div>
+          </div>
+
+          {/* Compact Category Filter */}
+          <div className="p-3 border-b border-gray-200">
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            >
+              <option value="all">All Categories ({totalElementCount})</option>
+              {categories.map(category => {
+                const count = availableElements.filter(el => el.category === category).length
+                return (
+                  <option key={category} value={category}>
+                    {category} ({count})
+                  </option>
+                )
+              })}
+            </select>
+          </div>
+
+          {/* Elements Grid */}
+          <div className="flex-1 overflow-y-auto p-3">
+            {isLoadingElements ? (
+              <div className="flex items-center justify-center h-32">
+                <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                <span className="ml-2 text-gray-600">Loading elements...</span>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-3 gap-2">
+                  {filteredElements.slice(0, visibleElementsCount).map((element, index) => (
+                    <SmartImage
+                      key={element.id}
+                      element={element}
+                      isPriority={index < 6}
+                      onClick={() => addElementToCanvas(element)}
+                    />
+                  ))}
+                </div>
+
+                {hasMoreElements && (
+                  <div className="mt-4 text-center">
+                    <button
+                      onClick={loadMoreElements}
+                      disabled={isLoadingMore}
+                      className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:bg-gray-100 mx-auto text-sm"
+                    >
+                      {isLoadingMore ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Plus className="w-4 h-4" />
+                      )}
+                      Load More ({filteredElements.length - visibleElementsCount} remaining)
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Canvas Area - More Balanced */}
         <div className="flex-1 p-4">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-full">
             <div
@@ -460,6 +599,7 @@ export default function CollageMaker() {
               onTouchEnd={handleTouchEnd}
               onClick={handleCanvasClick}
             >
+              {/* Canvas Content */}
               {collageElements.map((element) => (
                 <div
                   key={element.id}
@@ -476,6 +616,7 @@ export default function CollageMaker() {
                     transform: `rotate(${element.rotation}deg)`,
                     zIndex: element.zIndex,
                     transition: isDragging ? 'none' : 'all 0.2s ease',
+                    // Add padding to click area for better sensitivity
                     padding: '4px',
                     margin: '-4px'
                   }}
@@ -487,6 +628,7 @@ export default function CollageMaker() {
                   }}
                   onDoubleClick={() => deleteElement(element.id)}
                 >
+                  {/* Invisible click area overlay for better sensitivity */}
                   <div 
                     className="absolute inset-0 cursor-move"
                     style={{ 
@@ -508,14 +650,17 @@ export default function CollageMaker() {
                     draggable={false}
                   />
 
+                  {/* Visual feedback overlay */}
                   <div className="absolute inset-0 bg-blue-500 bg-opacity-0 group-hover:bg-opacity-10 transition-all duration-200 rounded pointer-events-none" />
                   
+                  {/* Selection indicator */}
                   {selectedElement === element.id && (
                     <div className="absolute -top-2 -right-2 w-4 h-4 bg-yellow-400 rounded-full animate-pulse shadow-lg pointer-events-none" />
                   )}
                 </div>
-              ))}
+              ))}>
 
+              {/* Empty state */}
               {collageElements.length === 0 && (
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="text-center text-gray-400">
@@ -526,6 +671,7 @@ export default function CollageMaker() {
                 </div>
               )}
 
+              {/* Instructions overlay */}
               {collageElements.length > 0 && (
                 <div className="absolute top-4 right-4 bg-black bg-opacity-75 text-white px-3 py-2 rounded-lg text-xs">
                   <div>Click to select • Drag to move</div>
