@@ -102,122 +102,69 @@ export default function CollageCreator() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedElement])
 
-  // LIGHTNING-FAST: Immediate loading component with aggressive optimization
-  const LightningImage = ({ element, onClick, index }: { element: Element, onClick: () => void, index: number }) => {
-    const [imageLoaded, setImageLoaded] = useState(false)
-    const [imageError, setImageError] = useState(false)
+  // TELEPORTATION: Instant manifesting image component - no loading states, no delays
+  const TeleportImage = ({ element, onClick, index }: { element: Element, onClick: () => void, index: number }) => {
     const imgRef = useRef<HTMLImageElement>(null)
 
-    // AGGRESSIVE: Load ALL visible elements immediately - no delays, no observers
-    const shouldLoad = index < visibleElementsCount
+    // MANIFEST IMMEDIATELY: No loading states, no waiting, just pure manifestation
+    const shouldRender = index < visibleElementsCount
 
-    // SUPER-AGGRESSIVE CACHING: Check multiple cache layers
+    // AGGRESSIVE INSTANT PRELOAD: Force immediate loading on mount
     useEffect(() => {
-      if (!shouldLoad) return
+      if (!shouldRender) return
 
-      const cacheKey = `${selectedCategory}-${element.id}`
-      const globalCacheKey = `thumb-${element.id}`
-      
-      // Check if we've loaded this before in ANY category
-      if (sessionStorage.getItem(globalCacheKey) === 'loaded' || 
-          sessionStorage.getItem(cacheKey) === 'loaded') {
-        setImageLoaded(true)
-        return
-      }
-
-      // PRELOAD: Start loading immediately for instant display
+      // INSTANT PRELOAD: Don't wait for anything, just load it NOW
       const img = new Image()
-      img.crossOrigin = 'anonymous' // Try to avoid CORS issues
+      img.src = element.file_url // Start loading immediately
       
-      img.onload = () => {
-        setImageLoaded(true)
-        // Cache globally across all categories
-        sessionStorage.setItem(globalCacheKey, 'loaded')
-        sessionStorage.setItem(cacheKey, 'loaded')
-      }
-      
-      img.onerror = () => {
-        setImageError(true)
-        console.warn(`⚠️ Failed to load thumbnail: ${element.name}`)
-      }
-      
-      // OPTIMIZED URL: Add query params for smaller thumbnails if your server supports it
-      const optimizedUrl = `${element.file_url}?w=150&h=150&q=80&f=webp` // Fallback if server doesn't support
-      img.src = element.file_url // Use original URL for now, but structure for optimization
-      
-    }, [shouldLoad, selectedCategory, element.id, element.file_url])
+      // Don't wait for onload - just trust it's loading in background
+    }, [shouldRender, element.file_url])
 
-    if (!shouldLoad) {
+    if (!shouldRender) {
       return (
         <div className="aspect-square bg-gray-900 border border-gray-700 flex items-center justify-center">
-          <div className="text-xs text-gray-600">...</div>
+          <div className="text-xs text-gray-600">•</div>
         </div>
       )
     }
 
-    const handleLoad = () => {
-      setImageLoaded(true)
-      // Multi-layer caching for instant future loads
-      const cacheKey = `${selectedCategory}-${element.id}`
-      const globalCacheKey = `thumb-${element.id}`
-      sessionStorage.setItem(cacheKey, 'loaded')
-      sessionStorage.setItem(globalCacheKey, 'loaded')
-    }
-
-    const handleError = () => {
-      setImageError(true)
-      console.warn(`⚠️ Thumbnail failed: ${element.name}`)
-    }
-
     return (
       <div
-        className="aspect-square bg-gray-800 border border-gray-600 hover:border-blue-500 cursor-pointer transition-all duration-150 hover:scale-105 p-1 group relative overflow-hidden"
+        className="aspect-square bg-gray-800 border border-gray-600 hover:border-blue-500 cursor-pointer transition-all duration-100 hover:scale-105 p-1 group relative overflow-hidden"
         onClick={onClick}
         title={`${element.name} - Click to add`}
       >
-        {/* PRIORITY LOADING: Show image immediately if cached, otherwise load fast */}
+        {/* TELEPORTATION: Show image immediately, no loading states */}
         <img
           ref={imgRef}
           src={element.file_url}
           alt={element.name}
-          className={`w-full h-full object-contain transition-all duration-200 ${
-            imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
-          } group-hover:opacity-80 group-hover:scale-105`}
-          onLoad={handleLoad}
-          onError={handleError}
-          loading="eager" // AGGRESSIVE: Force immediate loading, no lazy loading delays
-          decoding="async" // OPTIMIZED: Async decoding for better performance
+          className="w-full h-full object-contain opacity-100 scale-100 group-hover:opacity-80 group-hover:scale-105"
+          loading="eager" // FORCE immediate loading
+          decoding="sync" // FORCE synchronous decoding - no delays
           style={{
-            imageRendering: 'auto', // Let browser optimize for thumbnails
-            transform: 'translateZ(0)', // GPU acceleration
+            imageRendering: 'auto',
+            transform: 'translateZ(0)',
             backfaceVisibility: 'hidden',
-            // COMPRESSION: Smaller max size for faster loading
-            maxWidth: '150px',
-            maxHeight: '150px'
+            maxWidth: '120px', // SMALLER for faster loading
+            maxHeight: '120px'
+          }}
+          // NO onLoad handler - just let it appear when ready
+          onError={(e) => {
+            // Fail silently - don't show error states that slow things down
+            e.currentTarget.style.opacity = '0.3'
           }}
         />
         
-        {/* MINIMAL LOADING STATE: Just a fast pulse, no heavy animations */}
-        {!imageLoaded && !imageError && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
-            <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-          </div>
-        )}
+        {/* NO LOADING STATES - they just slow things down */}
         
-        {/* ERROR STATE: Clean fallback */}
-        {imageError && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-700 border border-red-500/30">
-            <div className="text-xs text-red-400">!</div>
-          </div>
-        )}
-        
-        {/* PRIORITY INDICATOR: Show which load first */}
+        {/* INSTANT PRIORITY INDICATOR */}
         {index < 12 && (
-          <div className="absolute top-0.5 left-0.5 w-1.5 h-1.5 bg-green-400 rounded-full opacity-60"></div>
+          <div className="absolute top-0.5 left-0.5 w-1 h-1 bg-green-400 rounded-full opacity-80"></div>
         )}
         
-        {/* HOVER EFFECT: Better visual feedback */}
-        <div className="absolute inset-0 bg-blue-500 opacity-0 group-hover:opacity-10 transition-opacity duration-150 pointer-events-none"></div>
+        {/* INSTANT HOVER EFFECT */}
+        <div className="absolute inset-0 bg-blue-500 opacity-0 group-hover:opacity-15 transition-opacity duration-100 pointer-events-none"></div>
       </div>
     )
   }
@@ -265,46 +212,32 @@ export default function CollageCreator() {
     }
   }
 
-  // Progressive loading function with smoother UX
+  // Progressive loading function with teleportation UX
   const loadMoreElements = useCallback(async () => {
     setIsLoadingMore(true)
     
-    // Simulate network delay for better UX feedback
-    await new Promise(resolve => setTimeout(resolve, 200)) // Reduced delay
+    // TELEPORTATION: Minimal delay for instant feedback
+    await new Promise(resolve => setTimeout(resolve, 50)) // Ultra-reduced delay
     
-    const increment = isMobile ? 12 : 18 // Smaller increments for faster loading
+    const increment = isMobile ? 15 : 24 // Larger increments for fewer clicks
     setVisibleElementsCount(prev => prev + increment)
     setIsLoadingMore(false)
   }, [isMobile])
 
-  // LIGHTNING-FAST category switching with preloading
+  // TELEPORTATION: Instant category switching with zero delays
   useEffect(() => {
-    // Reset visible count when category changes for instant switching
+    // INSTANT: Reset visible count immediately for instant switching
     setVisibleElementsCount(isMobile ? 18 : 24)
     
-    // PRELOAD STRATEGY: Start loading images for new category immediately
+    // TELEPORTATION PRELOAD: Start loading ALL visible images immediately in parallel
     if (filteredElements.length > 0) {
-      const preloadCount = Math.min(12, filteredElements.length) // Preload first 12 thumbnails
+      const preloadCount = Math.min(24, filteredElements.length) // Load more aggressively
       
-      // Use requestIdleCallback for non-blocking preload, fallback to setTimeout
-      const preloadImages = () => {
-        filteredElements.slice(0, preloadCount).forEach((element, index) => {
-          const img = new Image()
-          img.onload = () => {
-            const globalCacheKey = `thumb-${element.id}`
-            const cacheKey = `${selectedCategory}-${element.id}`
-            sessionStorage.setItem(globalCacheKey, 'loaded')
-            sessionStorage.setItem(cacheKey, 'loaded')
-          }
-          img.src = element.file_url
-        })
-      }
-      
-      if ('requestIdleCallback' in window) {
-        requestIdleCallback(preloadImages)
-      } else {
-        setTimeout(preloadImages, 50) // Small delay to not block UI
-      }
+      // PARALLEL LOADING: Fire off ALL requests at once, don't wait for anything
+      filteredElements.slice(0, preloadCount).forEach((element) => {
+        const img = new Image()
+        img.src = element.file_url // Just fire and forget - no callbacks, no waiting
+      })
     }
   }, [selectedCategory, isMobile, filteredElements])
 
@@ -994,7 +927,7 @@ export default function CollageCreator() {
                   )}
                 </button>
                 <p className="text-xs text-gray-400 mt-2 text-center">
-                  Using {availableElements.length} loaded elements • Lightning-fast category switching
+                  Using {availableElements.length} loaded elements • TELEPORTATION-speed switching
                 </p>
               </div>
 
@@ -1007,32 +940,28 @@ export default function CollageCreator() {
                   </label>
                 </div>
                 
-                {/* Category Filter with INSTANT switching */}
+                {/* Category Filter with TELEPORTATION switching */}
                 <select
                   value={selectedCategory}
                   onChange={(e) => {
                     const newCategory = e.target.value
                     
-                    // INSTANT FEEDBACK: Update immediately
+                    // TELEPORTATION: Update instantly, no delays, no caching overhead
                     setSelectedCategory(newCategory)
                     
-                    // PERFORMANCE BOOST: Pre-warm the new category
+                    // INSTANT PRELOAD: Fire off all requests immediately
                     const newFilteredElements = newCategory === 'all' 
                       ? availableElements 
                       : availableElements.filter(el => el.category === newCategory)
                     
-                    // Start aggressive preloading for new category
-                    const preloadCount = Math.min(18, newFilteredElements.length)
+                    // AGGRESSIVE PARALLEL LOADING: Load first 30 images immediately
+                    const preloadCount = Math.min(30, newFilteredElements.length)
                     newFilteredElements.slice(0, preloadCount).forEach((element) => {
                       const img = new Image()
-                      img.onload = () => {
-                        sessionStorage.setItem(`thumb-${element.id}`, 'loaded')
-                        sessionStorage.setItem(`${newCategory}-${element.id}`, 'loaded')
-                      }
-                      img.src = element.file_url
+                      img.src = element.file_url // Fire and forget - maximum speed
                     })
                   }}
-                  className="w-full p-2 bg-gray-800 border border-gray-700 text-white mb-3 text-sm transition-all duration-150 hover:border-blue-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="w-full p-2 bg-gray-800 border border-gray-700 text-white mb-3 text-sm transition-all duration-100 hover:border-blue-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 >
                   <option value="all">All Categories ({availableElements.length})</option>
                   {categories.map(category => (
@@ -1042,18 +971,18 @@ export default function CollageCreator() {
                   ))}
                 </select>
 
-                {/* LIGHTNING-FAST Elements Grid */}
+                {/* TELEPORTATION Elements Grid */}
                 <div className="max-h-96 overflow-y-auto border border-gray-700 bg-gray-900 p-2">
                   {/* PERFORMANCE TIP */}
                   {selectedCategory !== 'all' && filteredElements.length > 0 && (
                     <div className="text-xs text-green-400 mb-2 p-1 bg-green-900/20 border border-green-500/30 rounded">
-                      ⚡ {filteredElements.length} elements • Lightning loading enabled
+                      ⚡ {filteredElements.length} elements • TELEPORTATION MODE: Instant manifestation
                     </div>
                   )}
                   
                   <div className="grid grid-cols-3 gap-2">
                     {filteredElements.slice(0, visibleElementsCount).map((element, index) => (
-                      <LightningImage
+                      <TeleportImage
                         key={`${selectedCategory}-${element.id}`} // OPTIMIZED: Force re-render on category change
                         element={element}
                         index={index}
@@ -1289,11 +1218,11 @@ export default function CollageCreator() {
             <div className="text-xs text-gray-500 border-t border-gray-800 pt-4">
               <div className="text-center space-y-1">
                 <p className="font-bold text-gray-400">
-                  ⚡ LIGHTNING-OPTIMIZED: {availableElements.length.toLocaleString()} ELEMENTS • {collageElements.length} ON CANVAS
+                  ⚡ TELEPORTATION-OPTIMIZED: {availableElements.length.toLocaleString()} ELEMENTS • {collageElements.length} ON CANVAS
                 </p>
-                <p className="text-gray-600">Category switching at light speed with aggressive caching</p>
+                <p className="text-gray-600">Category switching at teleportation speed - elements manifest instantly</p>
                 <p className="text-yellow-400 font-semibold">💡 CLICK elements to select • Right-click to delete</p>
-                <p className="text-green-400">🚀 Lightning loading: Instant thumbnails, zero delays</p>
+                <p className="text-green-400">🚀 Teleportation mode: Zero loading states, instant manifestation</p>
               </div>
             </div>
           </div>
