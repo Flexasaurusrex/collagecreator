@@ -1290,3 +1290,4 @@ export default function CollageCreator() {
     </div>
   )
 }
+}
