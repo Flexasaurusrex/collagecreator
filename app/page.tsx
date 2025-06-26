@@ -16,6 +16,7 @@ export default function CollageCreator() {
   const [categories, setCategories] = useState<string[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [inspirationMode, setInspirationMode] = useState<'minimal' | 'mid' | 'high'>('mid')
+  const [isMobile, setIsMobile] = useState(false)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
@@ -61,6 +62,15 @@ export default function CollageCreator() {
 
   useEffect(() => {
     loadElements()
+    
+    // Mobile detection
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1024) // lg breakpoint
+    }
+    
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
   // Keyboard shortcuts - now placed after selectedElement declaration
@@ -347,8 +357,8 @@ export default function CollageCreator() {
   const handleElementClick = (e: React.MouseEvent, element: CollageElement) => {
     e.stopPropagation()
     
-    // Right click or Ctrl+click to delete
-    if (e.button === 2 || e.ctrlKey) {
+    // Right click to delete (desktop only)
+    if (e.button === 2 && !isMobile) {
       e.preventDefault()
       console.log('🗑️ Right-click delete:', element.name)
       deleteElement(element)
@@ -382,7 +392,7 @@ export default function CollageCreator() {
     e.stopPropagation()
     
     // Only handle dragging, not selection (selection handled by onClick)
-    if (e.button === 0 && !e.ctrlKey) { // Left click only
+    if (e.button === 0) { // Left click only
       setDraggedCanvasElement(element)
       
       const rect = canvasRef.current?.getBoundingClientRect()
@@ -491,7 +501,252 @@ export default function CollageCreator() {
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col lg:flex-row">
-      {/* Left Panel - Creation Tools */}
+      {/* Mobile Interface */}
+      {isMobile ? (
+        <>
+          {/* Mobile Header Controls */}
+          <div className="bg-black p-4 border-b border-gray-800">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-green-500 to-blue-500 bg-clip-text text-transparent">
+                  COLLAGE CREATOR
+                </h1>
+                <div className="text-xs text-gray-400">Mobile Mode</div>
+              </div>
+              {selectedElement && (
+                <button
+                  onClick={() => deleteElement(selectedElement)}
+                  className="bg-red-600 hover:bg-red-700 px-3 py-2 text-sm font-semibold flex items-center gap-2"
+                >
+                  <Trash2 size={16} />
+                  DELETE
+                </button>
+              )}
+            </div>
+            
+            {/* Mobile Generation Modes */}
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              <button
+                onClick={() => setInspirationMode('minimal')}
+                className={`p-2 text-xs font-bold ${
+                  inspirationMode === 'minimal'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-800 text-gray-300'
+                }`}
+              >
+                MINIMAL
+              </button>
+              <button
+                onClick={() => setInspirationMode('mid')}
+                className={`p-2 text-xs font-bold ${
+                  inspirationMode === 'mid'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-800 text-gray-300'
+                }`}
+              >
+                MID
+              </button>
+              <button
+                onClick={() => setInspirationMode('high')}
+                className={`p-2 text-xs font-bold ${
+                  inspirationMode === 'high'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-800 text-gray-300'
+                }`}
+              >
+                HIGH
+              </button>
+            </div>
+            
+            {/* Mobile Generate Button */}
+            <button
+              onClick={generateInspiration}
+              disabled={isGenerating || availableElements.length === 0}
+              className={`w-full p-3 text-sm font-bold transition-all duration-300 disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                isGenerating 
+                  ? 'bg-gray-600' 
+                  : 'bg-gradient-to-r from-green-600 to-blue-600'
+              }`}
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="animate-spin" size={16} />
+                  GENERATING...
+                </>
+              ) : (
+                <>
+                  <Sparkles size={16} />
+                  GENERATE COLLAGE
+                </>
+              )}
+            </button>
+            
+            {selectedElement && (
+              <div className="mt-4 p-3 bg-yellow-900/20 border border-yellow-500 rounded">
+                <div className="text-xs font-bold text-yellow-400 mb-2">EDITING: {selectedElement.name}</div>
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-xs text-gray-400">SIZE</label>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="4"
+                      step="0.1"
+                      value={selectedElement.scale}
+                      onChange={(e) => updateElement(selectedElement, { scale: parseFloat(e.target.value) })}
+                      className="w-full accent-yellow-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400">ROTATION</label>
+                    <input
+                      type="range"
+                      min="-180"
+                      max="180"
+                      step="15"
+                      value={selectedElement.rotation}
+                      onChange={(e) => updateElement(selectedElement, { rotation: parseInt(e.target.value) })}
+                      className="w-full accent-yellow-400"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div className="mt-3 text-center">
+              <div className="text-xs text-gray-400">{collageElements.length} elements • Tap to select • Drag to move</div>
+            </div>
+          </div>
+          
+          {/* Mobile Canvas */}
+          <div className="flex-1 bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden">
+            <div className="w-full h-full flex items-center justify-center p-4">
+              <div 
+                className="relative shadow-2xl"
+                style={{ 
+                  aspectRatio: '3/4', 
+                  width: '100%',
+                  maxWidth: '400px',
+                  maxHeight: 'calc(100vh - 280px)',
+                  overflow: 'hidden',
+                  cursor: 'default'
+                }}
+                onMouseMove={handleCanvasMouseMove}
+                onMouseUp={handleCanvasMouseUp}
+                onMouseLeave={handleCanvasMouseUp}
+                onTouchMove={(e) => {
+                  const touch = e.touches[0]
+                  if (touch && draggedCanvasElement && canvasRef.current) {
+                    const rect = canvasRef.current.getBoundingClientRect()
+                    const newX = ((touch.clientX - rect.left - dragOffset.x) / rect.width) * 100
+                    const newY = ((touch.clientY - rect.top - dragOffset.y) / rect.height) * 100
+                    const constrainedX = Math.max(-100, Math.min(200, newX))
+                    const constrainedY = Math.max(-100, Math.min(200, newY))
+                    updateElementSmooth(draggedCanvasElement, { x: constrainedX, y: constrainedY })
+                    setDraggedCanvasElement({ ...draggedCanvasElement, x: constrainedX, y: constrainedY })
+                  }
+                }}
+                onTouchEnd={() => {
+                  setDraggedCanvasElement(null)
+                  setIsDragging(false)
+                }}
+              >
+                <div 
+                  ref={canvasRef}
+                  className="collage-canvas bg-white relative w-full h-full"
+                  style={{
+                    transform: `scale(${zoom}) translate3d(${pan.x / zoom}px, ${pan.y / zoom}px, 0)`,
+                    transformOrigin: 'center',
+                    transition: isDragging ? 'none' : 'transform 0.2s ease-out',
+                    willChange: isDragging || zoom !== 1 ? 'transform' : 'auto',
+                    backfaceVisibility: 'hidden',
+                    perspective: 1000,
+                    overflow: 'hidden'
+                  }}
+                >
+                  {collageElements.map((element, index) => {
+                    const elementId = `${element.id}-${element.x}-${element.y}`
+                    const isSelected = selectedElementId === elementId
+                    
+                    return (
+                      <div
+                        key={elementId}
+                        className={`collage-element absolute select-none transition-all duration-150 ease-out ${
+                          isSelected ? 'ring-4 ring-yellow-400 ring-offset-4 ring-offset-white shadow-2xl' : ''
+                        } ${draggedCanvasElement === element ? 'opacity-90 scale-110 z-50' : ''}`}
+                        style={{
+                          left: `${element.x}%`,
+                          top: `${element.y}%`,
+                          transform: `translate3d(0, 0, 0) rotate(${element.rotation}deg) scale(${element.scale})`,
+                          opacity: draggedCanvasElement === element ? 0.9 : element.opacity,
+                          zIndex: draggedCanvasElement === element ? 999 : element.zIndex,
+                          transformOrigin: 'center',
+                          cursor: 'pointer',
+                          pointerEvents: 'auto',
+                          willChange: draggedCanvasElement === element ? 'transform' : 'auto',
+                          backfaceVisibility: 'hidden',
+                          perspective: 1000
+                        }}
+                        onClick={(e) => handleElementClick(e, element)}
+                        onMouseDown={(e) => handleElementMouseDown(e, element)}
+                        onTouchStart={(e) => {
+                          e.stopPropagation()
+                          const touch = e.touches[0]
+                          setSelectedElementId(elementId)
+                          setDraggedCanvasElement(element)
+                          
+                          const rect = canvasRef.current?.getBoundingClientRect()
+                          if (rect) {
+                            setDragOffset({
+                              x: touch.clientX - rect.left - (element.x / 100) * rect.width,
+                              y: touch.clientY - rect.top - (element.y / 100) * rect.height
+                            })
+                          }
+                        }}
+                      >
+                        <img
+                          src={element.file_url}
+                          alt={element.name}
+                          className="max-w-32 max-h-32 object-contain drop-shadow-lg"
+                          loading="lazy"
+                          crossOrigin="anonymous"
+                          style={{
+                            imageRendering: 'crisp-edges',
+                            transform: 'translate3d(0, 0, 0)',
+                            backfaceVisibility: 'hidden'
+                          }}
+                        />
+                        {element.primary && (
+                          <div className="absolute -top-1 -right-1 w-2 h-2 bg-gradient-to-r from-green-500 to-blue-500 rounded-full shadow-lg"></div>
+                        )}
+                        {isSelected && (
+                          <div className="absolute -top-2 -right-2 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg">
+                            <div className="w-1 h-1 bg-white rounded-full"></div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                  
+                  {collageElements.length === 0 && (
+                    <div className="flex items-center justify-center h-full text-gray-400">
+                      <div className="text-center p-4">
+                        <Sparkles className="mx-auto text-gray-300 mb-2" size={32} />
+                        <p className="text-sm mb-2">Ready to create?</p>
+                        <p className="text-xs text-gray-500">Tap "Generate Collage" above</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Desktop Interface - existing code */}
+          {/* Left Panel - Creation Tools */}
+          <div className="w-full lg:w-1/3 bg-black p-6 lg:p-8 flex flex-col">
       <div className="w-full lg:w-1/3 bg-black p-6 lg:p-8 flex flex-col">
         <div className="mb-6">
           <h1 className="text-3xl lg:text-4xl font-bold mb-2 tracking-tight bg-gradient-to-r from-green-500 to-blue-500 bg-clip-text text-transparent">
@@ -783,7 +1038,7 @@ export default function CollageCreator() {
                 <h3 className="font-bold text-blue-400 mb-2">🎯 ELEMENT TOOLS</h3>
                 <div className="text-xs text-gray-300 space-y-1">
                   <p><span className="text-yellow-400">CLICK</span> any element to select & bring to front</p>
-                  <p><span className="text-red-400">DOUBLE-CLICK</span> any element to delete</p>
+                  <p><span className="text-red-400">RIGHT-CLICK</span> or use DELETE key to remove</p>
                   <p><span className="text-green-400">DRAG</span> selected elements to move</p>
                 </div>
                 <div className="mt-3 pt-2 border-t border-blue-600">
@@ -899,7 +1154,7 @@ export default function CollageCreator() {
             <p className="font-bold text-gray-400">{availableElements.length.toLocaleString()} ELEMENTS • {collageElements.length} ON CANVAS</p>
             <p className="text-gray-600">Generate inspiration, then create your masterpiece</p>
             <p className="text-yellow-400 font-semibold">💡 CLICK elements to select & bring to front • DRAG to position</p>
-            <p className="text-gray-700">DOUBLE-CLICK to delete • Elements auto-layer within their type</p>
+            <p className="text-gray-700">RIGHT-CLICK to delete • DELETE key after selection</p>
           </div>
         </div>
       </div>
@@ -977,18 +1232,15 @@ export default function CollageCreator() {
                       backfaceVisibility: 'hidden', // Optimize for 3D transforms
                       perspective: 1000 // Enable 3D context
                     }}
-                    onMouseDown={(e) => handleElementMouseDown(e, element)}
-                    onClick={(e) => handleElementClick(e, element)}
-                    onDoubleClick={(e) => {
-                      e.stopPropagation()
-                      console.log('🗑️ Double-click delete:', element.name)
-                      deleteElement(element)
-                    }}
-                    onContextMenu={(e) => {
-                      e.preventDefault()
-                      console.log('🗑️ Right-click delete:', element.name)
-                      deleteElement(element)
-                    }}
+                      onMouseDown={(e) => handleElementMouseDown(e, element)}
+                      onClick={(e) => handleElementClick(e, element)}
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        if (!isMobile) {
+                          console.log('🗑️ Right-click delete:', element.name)
+                          deleteElement(element)
+                        }
+                      }}
                   >
                     <img
                       src={element.file_url}
@@ -1033,7 +1285,8 @@ export default function CollageCreator() {
             </div>
           </div>
         </div>
-      </div>
+        </>
+      )}
     </div>
   )
 }
