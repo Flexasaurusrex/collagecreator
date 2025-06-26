@@ -3,18 +3,104 @@
 import { useState, useRef, useEffect } from 'react'
 import { dbHelpers } from '@/lib/supabase'
 import { Element, CollageElement, SavedCollage } from '@/lib/types'
-import { Download, Save, History, Shuffle, Loader2 } from 'lucide-react'
+import { Download, Save, History, Shuffle, Loader2, Palette, Layout } from 'lucide-react'
 import html2canvas from 'html2canvas'
 
+// Compositional templates based on professional collage styles
+const COMPOSITION_TEMPLATES = {
+  landscape: {
+    name: "LANDSCAPE",
+    description: "Horizontal environmental scenes",
+    backgroundAreas: [
+      { x: 0, y: 0, width: 100, height: 40, priority: 'sky' },
+      { x: 0, y: 30, width: 100, height: 70, priority: 'ground' }
+    ],
+    focalPoints: [{ x: 65, y: 45 }, { x: 25, y: 55 }],
+    layering: ['nature', 'architecture', 'objects', 'people', 'animals']
+  },
+  portrait: {
+    name: "PORTRAIT", 
+    description: "Vertical figure compositions",
+    backgroundAreas: [
+      { x: 0, y: 0, width: 100, height: 100, priority: 'background' }
+    ],
+    focalPoints: [{ x: 50, y: 35 }, { x: 50, y: 65 }],
+    layering: ['nature', 'architecture', 'people', 'animals', 'objects']
+  },
+  surreal: {
+    name: "SURREAL",
+    description: "Dreamlike impossible scenes", 
+    backgroundAreas: [
+      { x: 0, y: 0, width: 100, height: 60, priority: 'sky' },
+      { x: 0, y: 40, width: 100, height: 60, priority: 'ground' }
+    ],
+    focalPoints: [{ x: 50, y: 50 }],
+    layering: ['space', 'nature', 'architecture', 'abstract', 'objects']
+  },
+  vintage: {
+    name: "VINTAGE",
+    description: "Retro nostalgic compositions",
+    backgroundAreas: [
+      { x: 0, y: 0, width: 100, height: 100, priority: 'vintage' }
+    ],
+    focalPoints: [{ x: 30, y: 40 }, { x: 70, y: 60 }],
+    layering: ['vintage', 'vehicles', 'people', 'architecture', 'objects']
+  },
+  chaos: {
+    name: "CHAOS",
+    description: "Dense overlapping collage",
+    backgroundAreas: [
+      { x: 0, y: 0, width: 100, height: 100, priority: 'mixed' }
+    ],
+    focalPoints: [{ x: 50, y: 50 }],
+    layering: ['nature', 'abstract', 'objects', 'people', 'animals', 'explosions']
+  }
+}
+
+// Color palettes that work well together
+const COLOR_PALETTES = {
+  warm: {
+    name: "WARM",
+    description: "Oranges, reds, yellows",
+    keywords: ['sunset', 'fire', 'desert', 'autumn', 'warm', 'orange', 'red', 'yellow']
+  },
+  cool: {
+    name: "COOL", 
+    description: "Blues, greens, purples",
+    keywords: ['sky', 'ocean', 'forest', 'blue', 'green', 'purple', 'cool', 'water']
+  },
+  monochrome: {
+    name: "MONO",
+    description: "Black, white, grays",
+    keywords: ['black', 'white', 'gray', 'mono', 'noir', 'vintage']
+  },
+  vibrant: {
+    name: "VIBRANT",
+    description: "Bright saturated colors",
+    keywords: ['neon', 'bright', 'vibrant', 'electric', 'pop', 'colorful']
+  },
+  earthy: {
+    name: "EARTHY",
+    description: "Browns, greens, naturals", 
+    keywords: ['earth', 'nature', 'brown', 'green', 'natural', 'organic']
+  },
+  mixed: {
+    name: "MIXED",
+    description: "All colors welcome",
+    keywords: []
+  }
+}
+
 export default function CollageRandomizer() {
-  const [prompt, setPrompt] = useState('')
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+  const [selectedTemplate, setSelectedTemplate] = useState('landscape')
+  const [selectedPalette, setSelectedPalette] = useState('mixed')
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [collageElements, setCollageElements] = useState<CollageElement[]>([])
   const [availableElements, setAvailableElements] = useState<Element[]>([])
   const [categories, setCategories] = useState<string[]>([])
-  const [detectedCategories, setDetectedCategories] = useState<string[]>([])
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
@@ -24,290 +110,80 @@ export default function CollageRandomizer() {
     loadElements()
   }, [])
 
-  useEffect(() => {
-    if (prompt) {
-      const parsed = parsePrompt(prompt)
-      setDetectedCategories(parsed.categories)
-    } else {
-      setDetectedCategories([])
-    }
-  }, [prompt, categories])
-
   const loadElements = async () => {
     try {
       const elements = await dbHelpers.getAllElements()
       setAvailableElements(elements)
       
-      const uniqueCategories = Array.from(new Set(elements.map(el => el.category)))
+      const uniqueCategories = Array.from(new Set(elements.map(el => el.category))).sort()
       setCategories(uniqueCategories)
+      
+      // Auto-select first few categories
+      setSelectedCategories(uniqueCategories.slice(0, 3))
     } catch (error) {
       console.error('Error loading elements:', error)
     }
   }
 
-  const parsePrompt = (promptText: string): { categories: string[], isExclusive: boolean, exclusiveCategory?: string } => {
-    if (!promptText.trim()) return { categories: [], isExclusive: false }
-    
-    const words = promptText.toLowerCase().split(/[\s,]+/).filter(Boolean)
-    const foundCategories = new Set<string>()
-    
-    // Check for exclusive keywords first
-    const exclusiveKeywords = ['only', 'all', 'just', 'exclusively', 'purely']
-    const exclusiveMatch = exclusiveKeywords.find(keyword => 
-      words.includes(keyword)
+  const toggleCategory = (category: string) => {
+    setSelectedCategories(prev => 
+      prev.includes(category) 
+        ? prev.filter(c => c !== category)
+        : [...prev, category]
     )
-    
-    if (exclusiveMatch) {
-      // Find the category that follows the exclusive keyword
-      const keywordIndex = words.indexOf(exclusiveMatch)
-      const potentialCategory = words[keywordIndex + 1]
-      
-      // Check if the word after the exclusive keyword matches a category
-      const matchedCategory = categories.find(category => 
-        category.toLowerCase() === potentialCategory ||
-        category.toLowerCase().includes(potentialCategory) ||
-        potentialCategory?.includes(category.toLowerCase())
-      )
-      
-      if (matchedCategory) {
-        console.log(`Exclusive mode detected: ${exclusiveMatch.toUpperCase()} ${matchedCategory}`)
-        return { 
-          categories: [matchedCategory], 
-          isExclusive: true, 
-          exclusiveCategory: matchedCategory 
-        }
-      }
-      
-      // Also check for category keywords in element names for exclusive mode
-      availableElements.forEach(element => {
-        const elementWords = [
-          ...element.name.toLowerCase().split(/[\s-_]+/),
-          ...element.tags.map(tag => tag.toLowerCase())
-        ]
-        
-        if (words.some(word => 
-          elementWords.some(elementWord => 
-            elementWord === potentialCategory || 
-            (elementWord.length > 3 && elementWord.includes(potentialCategory)) ||
-            (potentialCategory && potentialCategory.length > 3 && potentialCategory.includes(elementWord))
-          )
-        )) {
-          foundCategories.add(element.category)
-        }
-      })
-      
-      if (foundCategories.size === 1) {
-        const exclusiveCategory = Array.from(foundCategories)[0]
-        console.log(`Exclusive mode detected via element matching: ${exclusiveMatch.toUpperCase()} ${exclusiveCategory}`)
-        return { 
-          categories: [exclusiveCategory], 
-          isExclusive: true, 
-          exclusiveCategory 
-        }
-      }
-    }
-    
-    // Normal multi-category matching
-    categories.forEach(category => {
-      if (words.some(word => 
-        category.toLowerCase().includes(word) || 
-        word.includes(category.toLowerCase())
-      )) {
-        foundCategories.add(category)
-      }
-    })
-    
-    // Enhanced file name and tag matching for normal mode
-    availableElements.forEach(element => {
-      const elementWords = [
-        ...element.name.toLowerCase().split(/[\s-_]+/),
-        ...element.tags.map(tag => tag.toLowerCase())
-      ]
-      
-      const hasDirectMatch = words.some(word => 
-        elementWords.some(elementWord => {
-          return elementWord === word || 
-                 (elementWord.length > 3 && elementWord.includes(word)) ||
-                 (word.length > 3 && word.includes(elementWord))
-        })
-      )
-      
-      if (hasDirectMatch) {
-        foundCategories.add(element.category)
-      }
-    })
-    
-    return { 
-      categories: Array.from(foundCategories), 
-      isExclusive: false 
-    }
   }
 
-  const getMatchingElements = (promptText: string, categoryElements: Element[]): Element[] => {
-    if (!promptText.trim()) return categoryElements
+  // Filter elements by color palette using filename/tag analysis
+  const filterByColorPalette = (elements: Element[], palette: string): Element[] => {
+    if (palette === 'mixed') return elements
     
-    const words = promptText.toLowerCase().split(/[\s,]+/).filter(Boolean)
-    const scoredElements = categoryElements.map(element => {
-      let score = 0
-      const elementWords = [
-        ...element.name.toLowerCase().split(/[\s-_]+/),
-        ...element.tags.map(tag => tag.toLowerCase())
-      ]
-      
-      // Score based on keyword matches in file names
-      words.forEach(word => {
-        elementWords.forEach(elementWord => {
-          if (elementWord === word) score += 10 // Exact match
-          else if (elementWord.includes(word) && word.length > 2) score += 5 // Substring match
-          else if (word.includes(elementWord) && elementWord.length > 2) score += 3 // Reverse substring
-        })
-      })
-      
-      return { element, score }
+    const paletteData = COLOR_PALETTES[palette as keyof typeof COLOR_PALETTES]
+    if (!paletteData || paletteData.keywords.length === 0) return elements
+    
+    return elements.filter(element => {
+      const searchText = `${element.name} ${element.tags.join(' ')}`.toLowerCase()
+      return paletteData.keywords.some(keyword => searchText.includes(keyword))
     })
-    
-    // Return elements sorted by relevance score, fallback to random if no matches
-    const relevantElements = scoredElements.filter(item => item.score > 0)
-    return relevantElements.length > 0 
-      ? relevantElements.sort((a, b) => b.score - a.score).map(item => item.element)
-      : categoryElements
   }
 
-  const getElementLayer = (element: Element, scale: number, primary: boolean): number => {
-    // Base z-index on element type and scale for proper layering
-    let baseZIndex = 0
-    
-    // Background categories (lowest z-index)
-    const backgroundCategories = ['nature', 'architecture', 'space', 'vintage']
-    if (backgroundCategories.includes(element.category)) {
-      baseZIndex = 1
-    }
-    
-    // Mid-ground categories  
-    const midgroundCategories = ['statues', 'objects', 'abstract']
-    if (midgroundCategories.includes(element.category)) {
-      baseZIndex = 10
-    }
-    
-    // Foreground categories (highest z-index)
-    const foregroundCategories = ['people', 'animals', 'explosions']
-    if (foregroundCategories.includes(element.category)) {
-      baseZIndex = 20
-    }
-    
-    // Scale adjustment: larger elements go further back
-    const scaleAdjustment = Math.floor((1 - scale) * 10) // Larger scale = lower adjustment
-    
-    // Primary elements get slight boost to ensure visibility
-    const primaryBoost = primary ? 5 : 0
-    
-    return baseZIndex + scaleAdjustment + primaryBoost + Math.floor(Math.random() * 3)
-  }
-
-  const getSmartScale = (element: Element, primary: boolean): number => {
-    // Smart scaling based on element type - MAKE BACKGROUNDS MUCH LARGER
-    const backgroundCategories = ['nature', 'architecture', 'space', 'vintage']
-    const foregroundCategories = ['people', 'animals', 'explosions']
-    
-    if (backgroundCategories.includes(element.category)) {
-      // Background elements should be LARGE to fill space
-      return primary ? 0.8 + Math.random() * 0.7 : 0.6 + Math.random() * 0.8 // Much larger backgrounds
-    } else if (foregroundCategories.includes(element.category)) {
-      // Foreground elements should be medium to large for visibility
-      return primary ? 0.4 + Math.random() * 0.5 : 0.3 + Math.random() * 0.4
+  // Smart element placement based on composition template
+  const getSmartPlacement = (template: any, elementType: string, isBackground: boolean, focalIndex?: number) => {
+    if (isBackground) {
+      // Background elements fill designated areas
+      const area = template.backgroundAreas[Math.floor(Math.random() * template.backgroundAreas.length)]
+      return {
+        x: area.x + Math.random() * (area.width - 20),
+        y: area.y + Math.random() * (area.height - 20),
+        scale: 1.2 + Math.random() * 0.8, // Large backgrounds
+        rotation: (Math.random() - 0.5) * 20
+      }
+    } else if (focalIndex !== undefined && template.focalPoints[focalIndex]) {
+      // Focal elements placed near focal points
+      const focal = template.focalPoints[focalIndex]
+      return {
+        x: focal.x + (Math.random() - 0.5) * 30,
+        y: focal.y + (Math.random() - 0.5) * 30, 
+        scale: 0.8 + Math.random() * 0.6,
+        rotation: (Math.random() - 0.5) * 45
+      }
     } else {
-      // Mid-ground elements - balanced sizing
-      return primary ? 0.5 + Math.random() * 0.5 : 0.3 + Math.random() * 0.5
+      // Supporting elements scattered but following composition
+      return {
+        x: 10 + Math.random() * 80,
+        y: 10 + Math.random() * 80,
+        scale: 0.4 + Math.random() * 0.8,
+        rotation: (Math.random() - 0.5) * 90
+      }
     }
   }
 
-  const calculateCanvasCoverage = (elements: CollageElement[], canvasWidth: number, canvasHeight: number): number => {
-    // Create a higher resolution grid to track coverage for better accuracy
-    const gridSize = 30 // 30x30 grid for more precise coverage calculation
-    const grid = Array(gridSize).fill(null).map(() => Array(gridSize).fill(false))
+  // Get z-index based on template layering order
+  const getTemplateZIndex = (template: any, category: string, isBackground: boolean): number => {
+    if (isBackground) return 1 + Math.random() * 3
     
-    elements.forEach(element => {
-      // Calculate element boundaries with better size estimation
-      const elementWidth = (element.scale * 64) // Larger base size since elements are bigger now
-      const elementHeight = (element.scale * 64)
-      
-      const centerX = Math.floor((element.x / 100) * gridSize)
-      const centerY = Math.floor((element.y / 100) * gridSize)
-      const radiusX = Math.floor((elementWidth / canvasWidth) * gridSize / 2)
-      const radiusY = Math.floor((elementHeight / canvasHeight) * gridSize / 2)
-      
-      // Mark grid cells as covered in a more realistic circular/oval pattern
-      for (let y = Math.max(0, centerY - radiusY); y <= Math.min(gridSize - 1, centerY + radiusY); y++) {
-        for (let x = Math.max(0, centerX - radiusX); x <= Math.min(gridSize - 1, centerX + radiusX); x++) {
-          // Create more organic coverage pattern
-          const distanceX = Math.abs(x - centerX) / (radiusX || 1)
-          const distanceY = Math.abs(y - centerY) / (radiusY || 1)
-          if (distanceX * distanceX + distanceY * distanceY <= 1.2) { // Slightly larger coverage area
-            grid[y][x] = true
-          }
-        }
-      }
-    })
-    
-    // Calculate coverage percentage
-    const totalCells = gridSize * gridSize
-    const coveredCells = grid.flat().filter(cell => cell).length
-    return (coveredCells / totalCells) * 100
-  }
-
-  const fillCanvasGaps = (elements: CollageElement[], targetCoverage: number = 95): CollageElement[] => {
-    const canvasWidth = 600 // Approximate canvas width
-    const canvasHeight = 800 // Approximate canvas height (3:4 ratio)
-    
-    let currentElements = [...elements]
-    let coverage = calculateCanvasCoverage(currentElements, canvasWidth, canvasHeight)
-    
-    console.log(`Initial coverage: ${coverage.toFixed(1)}%`)
-    
-    // First pass: Add large background elements to fill major gaps
-    let attempts = 0
-    while (coverage < targetCoverage && attempts < 100 && availableElements.length > 0) {
-      const backgroundCategories = ['nature', 'architecture', 'space', 'vintage']
-      const backgroundElements = availableElements.filter(el => backgroundCategories.includes(el.category))
-      
-      const randomElement = backgroundElements.length > 0 
-        ? backgroundElements[Math.floor(Math.random() * backgroundElements.length)]
-        : availableElements[Math.floor(Math.random() * availableElements.length)]
-      
-      // Create large background filler elements
-      const fillerElement: CollageElement = {
-        ...randomElement,
-        x: Math.random() * 70, // Wider spread
-        y: Math.random() * 80, // Taller spread
-        scale: 0.6 + Math.random() * 0.8, // Much larger elements for background fill
-        rotation: (Math.random() - 0.5) * 360, // Full rotation
-        opacity: 0.4 + Math.random() * 0.6, // Variable opacity for layering
-        zIndex: Math.floor(Math.random() * 8), // Background to mid-ground
-        primary: false
-      }
-      
-      currentElements.push(fillerElement)
-      coverage = calculateCanvasCoverage(currentElements, canvasWidth, canvasHeight)
-      attempts++
-      
-      // Add extra small elements in gaps if coverage is still low
-      if (attempts > 20 && coverage < targetCoverage - 10) {
-        const smallElement: CollageElement = {
-          ...availableElements[Math.floor(Math.random() * availableElements.length)],
-          x: Math.random() * 90,
-          y: Math.random() * 95,
-          scale: 0.2 + Math.random() * 0.4, // Smaller gap fillers
-          rotation: (Math.random() - 0.5) * 180,
-          opacity: 0.3 + Math.random() * 0.5,
-          zIndex: Math.floor(Math.random() * 15),
-          primary: false
-        }
-        currentElements.push(smallElement)
-      }
-    }
-    
-    console.log(`Final coverage: ${coverage.toFixed(1)}% after ${attempts} filler elements`)
-    return currentElements
+    const layerIndex = template.layering.indexOf(category)
+    const baseZ = layerIndex >= 0 ? layerIndex * 5 + 10 : 25
+    return baseZ + Math.random() * 4
   }
 
   const generateCollage = async () => {
@@ -316,197 +192,102 @@ export default function CollageRandomizer() {
       return
     }
     
-    setIsGenerating(true)
+    if (selectedCategories.length === 0) {
+      alert('Please select at least one category.')
+      return
+    }
     
-    // Simulate processing time for better UX
+    setIsGenerating(true)
     await new Promise(resolve => setTimeout(resolve, 1200))
     
     try {
-      const promptAnalysis = parsePrompt(prompt)
-      let primaryCategories: string[]
+      const template = COMPOSITION_TEMPLATES[selectedTemplate as keyof typeof COMPOSITION_TEMPLATES]
+      console.log(`Generating ${template.name} composition with palette: ${selectedPalette}`)
       
-      if (promptAnalysis.categories.length > 0) {
-        // User entered a prompt - use detected categories
-        primaryCategories = promptAnalysis.categories
-      } else if (prompt.trim() === '') {
-        // No prompt - completely random categories
-        const shuffledCategories = [...categories].sort(() => Math.random() - 0.5)
-        primaryCategories = shuffledCategories.slice(0, Math.floor(Math.random() * 4) + 2) // 2-5 random categories
-        console.log('No prompt detected - using random categories:', primaryCategories)
-      } else {
-        // Prompt entered but no categories detected - fall back to first few
-        primaryCategories = categories.slice(0, 3)
+      // Filter available elements by selected categories and color palette
+      let workingElements = availableElements.filter(el => selectedCategories.includes(el.category))
+      workingElements = filterByColorPalette(workingElements, selectedPalette)
+      
+      console.log(`Working with ${workingElements.length} elements from categories:`, selectedCategories)
+      
+      if (workingElements.length === 0) {
+        alert('No elements found for selected categories and color palette. Try different selections.')
+        return
       }
       
       const elements: CollageElement[] = []
-      const exclusiveKeywords = ['only', 'all', 'just', 'exclusively', 'purely']
-      const words = prompt.toLowerCase().split(/[\s,]+/).filter(Boolean)
       
-      console.log('Prompt analysis:', promptAnalysis)
+      // STEP 1: Place background elements according to template
+      const backgroundCategories = template.layering.slice(0, 2) // First 2 categories are background
+      const bgElements = workingElements.filter(el => backgroundCategories.includes(el.category))
       
-      if (promptAnalysis.isExclusive && promptAnalysis.exclusiveCategory) {
-        // EXCLUSIVE MODE: Check if user wants specific elements vs entire category
-        const exclusiveKeyword = exclusiveKeywords.find(keyword => words.includes(keyword))
-        const keywordIndex = words.indexOf(exclusiveKeyword!)
-        const targetTerm = words[keywordIndex + 1]
+      // Place 3-5 large background elements
+      const bgCount = Math.floor(Math.random() * 3) + 3
+      for (let i = 0; i < bgCount && bgElements.length > 0; i++) {
+        const element = bgElements[Math.floor(Math.random() * bgElements.length)]
+        const placement = getSmartPlacement(template, element.category, true)
         
-        // Find elements that specifically match the target term
-        const specificElements = availableElements.filter(element => {
-          const elementWords = [
-            ...element.name.toLowerCase().split(/[\s-_]+/),
-            ...element.tags.map(tag => tag.toLowerCase())
-          ]
-          return elementWords.some(word => 
-            word === targetTerm || 
-            (word.length > 3 && word.includes(targetTerm)) ||
-            (targetTerm && targetTerm.length > 3 && targetTerm.includes(word))
-          )
+        elements.push({
+          ...element,
+          ...placement,
+          opacity: 0.6 + Math.random() * 0.3,
+          zIndex: getTemplateZIndex(template, element.category, true),
+          primary: true
         })
+      }
+      
+      // STEP 2: Place focal elements at designated focal points
+      const focalCategories = template.layering.slice(2, 4) // Middle categories for focal points
+      const focalElements = workingElements.filter(el => focalCategories.includes(el.category))
+      
+      template.focalPoints.forEach((focal, index) => {
+        if (focalElements.length === 0) return
         
-        let exclusiveElements: Element[]
-        let exclusiveLabel: string
-        
-        if (specificElements.length > 0 && targetTerm && !categories.includes(targetTerm)) {
-          // User wants specific elements (e.g., "ALL tigers")
-          exclusiveElements = specificElements
-          exclusiveLabel = targetTerm.toUpperCase()
-          console.log(`Specific exclusive mode: Found ${exclusiveElements.length} ${targetTerm} elements`)
-        } else {
-          // User wants entire category (e.g., "ONLY animals")
-          exclusiveElements = availableElements.filter(el => el.category === promptAnalysis.exclusiveCategory)
-          exclusiveLabel = promptAnalysis.exclusiveCategory!.toUpperCase()
-          console.log(`Category exclusive mode: Found ${exclusiveElements.length} elements from ${promptAnalysis.exclusiveCategory}`)
-        }
-        
-        if (exclusiveElements.length === 0) {
-          alert(`No elements found for: ${exclusiveLabel}`)
-          return
-        }
-        
-        if (exclusiveElements.length < 5) {
-          console.warn(`Only ${exclusiveElements.length} elements found for "${exclusiveLabel}" - this may result in a sparse collage`)
-        }
-        
-        // Adapt element counts based on available elements - CREATE DENSE COMPOSITIONS
-        const maxElements = exclusiveElements.length
-        const primaryCount = Math.min(Math.floor(Math.random() * 4) + 3, Math.floor(maxElements * 0.3)) // 3-6 primary
-        const secondaryCount = Math.min(Math.floor(Math.random() * 15) + 15, maxElements - primaryCount) // 15-29 secondary for density
-        
-        console.log(`Using ${primaryCount} primary + ${secondaryCount} secondary from ${maxElements} available ${exclusiveLabel} elements`)
-        
-        // Add large background primary elements first
-        for (let i = 0; i < primaryCount; i++) {
-          const element = exclusiveElements[Math.floor(Math.random() * exclusiveElements.length)]
-          
-          // Smart scaling and layering - make backgrounds larger
-          const smartScale = getSmartScale(element, true)
-          const isBackground = ['nature', 'architecture', 'space', 'vintage'].includes(element.category)
+        // Place 1-2 elements per focal point
+        const focalCount = Math.floor(Math.random() * 2) + 1
+        for (let i = 0; i < focalCount; i++) {
+          const element = focalElements[Math.floor(Math.random() * focalElements.length)]
+          const placement = getSmartPlacement(template, element.category, false, index)
           
           elements.push({
             ...element,
-            x: Math.random() * (isBackground ? 40 : 60), // Backgrounds spread more
-            y: Math.random() * (isBackground ? 50 : 70),
-            scale: smartScale * (isBackground ? 1.5 : 1.2), // Larger elements
-            rotation: (Math.random() - 0.5) * (isBackground ? 30 : 50),
+            ...placement,
             opacity: 0.8 + Math.random() * 0.2,
-            zIndex: getElementLayer(element, smartScale, true),
+            zIndex: getTemplateZIndex(template, element.category, false),
             primary: true
           })
         }
+      })
+      
+      // STEP 3: Fill with supporting elements following template layering
+      const supportingCount = Math.floor(Math.random() * 15) + 20 // 20-34 supporting elements
+      for (let i = 0; i < supportingCount; i++) {
+        const element = workingElements[Math.floor(Math.random() * workingElements.length)]
+        const placement = getSmartPlacement(template, element.category, false)
         
-        // Add dense overlapping secondary elements
-        for (let i = 0; i < secondaryCount; i++) {
-          const element = exclusiveElements[Math.floor(Math.random() * exclusiveElements.length)]
-          
-          // Smart scaling and layering for secondary elements
-          const smartScale = getSmartScale(element, false)
+        elements.push({
+          ...element,
+          ...placement,
+          opacity: 0.4 + Math.random() * 0.6,
+          zIndex: getTemplateZIndex(template, element.category, false),
+          primary: false
+        })
+      }
+      
+      // STEP 4: Add density layer for chaos template
+      if (selectedTemplate === 'chaos') {
+        const chaosCount = Math.floor(Math.random() * 20) + 15
+        for (let i = 0; i < chaosCount; i++) {
+          const element = workingElements[Math.floor(Math.random() * workingElements.length)]
           
           elements.push({
             ...element,
-            x: Math.random() * 90, // Full canvas coverage
+            x: Math.random() * 95,
             y: Math.random() * 95,
-            scale: smartScale * (0.7 + Math.random() * 0.8), // Variable sizing
-            rotation: (Math.random() - 0.5) * 120,
-            opacity: 0.4 + Math.random() * 0.6,
-            zIndex: getElementLayer(element, smartScale, false),
-            primary: false
-          })
-        }
-        
-      } else {
-        // NORMAL MODE: Create layered collage composition
-        console.log(`Normal mode: Using categories: ${primaryCategories.join(', ')}`)
-        
-        // STEP 1: Place large background elements first (nature, architecture, space)
-        const backgroundCategories = ['nature', 'architecture', 'space', 'vintage']
-        const backgroundAvailable = primaryCategories.filter(cat => backgroundCategories.includes(cat))
-        
-        if (backgroundAvailable.length > 0) {
-          const backgroundCount = Math.floor(Math.random() * 4) + 3 // 3-6 background elements
-          for (let i = 0; i < backgroundCount; i++) {
-            const category = backgroundAvailable[Math.floor(Math.random() * backgroundAvailable.length)]
-            const categoryElements = availableElements.filter(el => el.category === category)
-            
-            if (categoryElements.length === 0) continue
-            
-            const element = categoryElements[Math.floor(Math.random() * categoryElements.length)]
-            
-            elements.push({
-              ...element,
-              x: Math.random() * 40, // Spread across canvas
-              y: Math.random() * 50,
-              scale: 0.8 + Math.random() * 0.6, // Large background elements
-              rotation: (Math.random() - 0.5) * 30, // Subtle rotation
-              opacity: 0.6 + Math.random() * 0.4,
-              zIndex: 1 + Math.floor(Math.random() * 5), // Background layer
-              primary: true
-            })
-          }
-        }
-        
-        // STEP 2: Add mid-ground elements from detected categories
-        const primaryCount = Math.floor(Math.random() * 4) + 4 // 4-7 primary elements
-        for (let i = 0; i < primaryCount && primaryCategories.length > 0; i++) {
-          const category = primaryCategories[Math.floor(Math.random() * primaryCategories.length)]
-          const categoryElements = availableElements.filter(el => el.category === category)
-          
-          if (categoryElements.length === 0) continue
-          
-          // Use smart matching to get most relevant files for the prompt
-          const relevantElements = getMatchingElements(prompt, categoryElements)
-          const element = relevantElements[Math.floor(Math.random() * Math.min(relevantElements.length, 5))]
-          
-          // Smart scaling and layering
-          const smartScale = getSmartScale(element, true)
-          
-          elements.push({
-            ...element,
-            x: Math.random() * 60, // More centered placement
-            y: Math.random() * 70,
-            scale: smartScale * 1.2, // Make primary elements bigger
-            rotation: (Math.random() - 0.5) * 40,
-            opacity: 0.8 + Math.random() * 0.2,
-            zIndex: getElementLayer(element, smartScale, true),
-            primary: true
-          })
-        }
-        
-        // STEP 3: Add overlapping secondary elements for density
-        const secondaryCount = Math.floor(Math.random() * 12) + 12 // 12-23 secondary elements
-        for (let i = 0; i < secondaryCount; i++) {
-          const element = availableElements[Math.floor(Math.random() * availableElements.length)]
-          
-          // Create overlapping, dense placement
-          const smartScale = getSmartScale(element, false)
-          
-          elements.push({
-            ...element,
-            x: Math.random() * 85, // Full canvas usage
-            y: Math.random() * 90,
-            scale: smartScale * (0.8 + Math.random() * 0.8), // Variable sizing for interest
-            rotation: (Math.random() - 0.5) * 120, // More dramatic rotation
-            opacity: 0.5 + Math.random() * 0.5,
-            zIndex: getElementLayer(element, smartScale, false),
+            scale: 0.3 + Math.random() * 0.9,
+            rotation: Math.random() * 360,
+            opacity: 0.3 + Math.random() * 0.7,
+            zIndex: Math.random() * 40,
             primary: false
           })
         }
@@ -515,10 +296,8 @@ export default function CollageRandomizer() {
       // Sort by z-index for proper layering
       elements.sort((a, b) => a.zIndex - b.zIndex)
       
-      // Fill canvas gaps to ensure complete coverage - AIM FOR DENSE COMPOSITIONS
-      const filledElements = fillCanvasGaps(elements, 95) // 95% coverage target for full collages
-      
-      setCollageElements(filledElements)
+      console.log(`Generated composition with ${elements.length} elements`)
+      setCollageElements(elements)
       
     } catch (error) {
       console.error('Error generating collage:', error)
@@ -537,10 +316,12 @@ export default function CollageRandomizer() {
     setIsSaving(true)
     
     try {
+      const title = `${COMPOSITION_TEMPLATES[selectedTemplate as keyof typeof COMPOSITION_TEMPLATES].name} • ${COLOR_PALETTES[selectedPalette as keyof typeof COLOR_PALETTES].name}`
+      
       await dbHelpers.saveCollage({
-        prompt: prompt || 'Untitled',
+        prompt: title,
         elements_data: collageElements,
-        title: prompt ? `Collage: ${prompt}` : 'Untitled Collage'
+        title: title
       })
       
       alert('Collage saved successfully!')
@@ -563,7 +344,7 @@ export default function CollageRandomizer() {
     try {
       const canvas = await html2canvas(canvasRef.current, {
         backgroundColor: '#ffffff',
-        scale: 2, // High resolution
+        scale: 2,
         useCORS: true,
         allowTaint: true,
         logging: false,
@@ -571,8 +352,11 @@ export default function CollageRandomizer() {
         height: canvasRef.current.offsetHeight
       })
       
+      const template = COMPOSITION_TEMPLATES[selectedTemplate as keyof typeof COMPOSITION_TEMPLATES]
+      const palette = COLOR_PALETTES[selectedPalette as keyof typeof COLOR_PALETTES]
+      
       const link = document.createElement('a')
-      link.download = `collage-${prompt.replace(/\s+/g, '-') || 'untitled'}-${Date.now()}.png`
+      link.download = `collage-${template.name.toLowerCase()}-${palette.name.toLowerCase()}-${Date.now()}.png`
       link.href = canvas.toDataURL('image/png', 1.0)
       document.body.appendChild(link)
       link.click()
@@ -592,43 +376,117 @@ export default function CollageRandomizer() {
       <div className="w-full lg:w-1/3 bg-black text-white p-6 lg:p-8 flex flex-col">
         <div className="mb-8">
           <h1 className="text-3xl lg:text-4xl font-bold mb-2 tracking-tight">COLLAGE</h1>
-          <h2 className="text-xl lg:text-2xl font-light tracking-wider">RANDOMIZER</h2>
+          <h2 className="text-xl lg:text-2xl font-light tracking-wider">COMPOSER</h2>
           <div className="w-16 h-1 bg-red-600 mt-4"></div>
         </div>
         
-        <div className="flex-1">
-          <label className="form-label">
-            PROMPT
-          </label>
-          <input
-            type="text"
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder="statues and explosions"
-            className="form-input bg-white text-black"
-            disabled={isGenerating}
-          />
+        <div className="flex-1 space-y-6">
+          {/* Composition Template */}
+          <div>
+            <label className="form-label flex items-center gap-2">
+              <Layout size={16} />
+              COMPOSITION STYLE
+            </label>
+            <div className="grid grid-cols-1 gap-2 mt-2">
+              {Object.entries(COMPOSITION_TEMPLATES).map(([key, template]) => (
+                <button
+                  key={key}
+                  onClick={() => setSelectedTemplate(key)}
+                  className={`p-3 text-left border transition-colors ${
+                    selectedTemplate === key 
+                      ? 'bg-red-600 border-red-600 text-white' 
+                      : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+                  }`}
+                >
+                  <div className="font-bold text-sm">{template.name}</div>
+                  <div className="text-xs opacity-75">{template.description}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Color Palette */}
+          <div>
+            <label className="form-label flex items-center gap-2">
+              <Palette size={16} />
+              COLOR PALETTE
+            </label>
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              {Object.entries(COLOR_PALETTES).map(([key, palette]) => (
+                <button
+                  key={key}
+                  onClick={() => setSelectedPalette(key)}
+                  className={`p-2 text-left border transition-colors ${
+                    selectedPalette === key 
+                      ? 'bg-yellow-600 border-yellow-600 text-black' 
+                      : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+                  }`}
+                >
+                  <div className="font-bold text-xs">{palette.name}</div>
+                  <div className="text-xs opacity-75">{palette.description}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Category Selection */}
+          <div>
+            <label className="form-label">
+              CATEGORIES ({selectedCategories.length} selected)
+            </label>
+            <div className="max-h-48 overflow-y-auto border border-gray-700 bg-gray-900 p-2 mt-2">
+              <div className="space-y-1">
+                {categories.map(category => (
+                  <label key={category} className="flex items-center gap-2 p-2 hover:bg-gray-800 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedCategories.includes(category)}
+                      onChange={() => toggleCategory(category)}
+                      className="w-4 h-4 accent-red-600"
+                    />
+                    <span className="text-sm capitalize">
+                      {category} ({availableElements.filter(el => el.category === category).length})
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={() => setSelectedCategories(categories)}
+                className="bg-gray-800 px-3 py-1 text-xs hover:bg-gray-700"
+              >
+                SELECT ALL
+              </button>
+              <button
+                onClick={() => setSelectedCategories([])}
+                className="bg-gray-800 px-3 py-1 text-xs hover:bg-gray-700"
+              >
+                CLEAR ALL
+              </button>
+            </div>
+          </div>
           
           <button
             onClick={generateCollage}
-            disabled={isGenerating || availableElements.length === 0}
-            className="w-full mt-6 btn-primary p-4 text-lg disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            disabled={isGenerating || availableElements.length === 0 || selectedCategories.length === 0}
+            className="w-full btn-primary p-4 text-lg disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isGenerating ? (
               <>
                 <Loader2 className="animate-spin" size={20} />
-                GENERATING...
+                COMPOSING...
               </>
             ) : (
               <>
                 <Shuffle size={20} />
-                RANDOMIZE
+                GENERATE COMPOSITION
               </>
             )}
           </button>
           
           {/* Action Buttons */}
-          <div className="grid grid-cols-2 gap-4 mt-6">
+          <div className="grid grid-cols-2 gap-4">
             <button
               onClick={saveCollage}
               disabled={collageElements.length === 0 || isSaving}
@@ -657,7 +515,7 @@ export default function CollageRandomizer() {
 
           {/* Zoom Controls */}
           {collageElements.length > 0 && (
-            <div className="mt-6 border-t border-gray-800 pt-6">
+            <div className="border-t border-gray-800 pt-4">
               <h3 className="font-bold mb-3 tracking-wide text-red-400">COMPOSITION</h3>
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
@@ -688,79 +546,33 @@ export default function CollageRandomizer() {
                   RESET VIEW
                 </button>
                 <p className="text-xs text-gray-400">
-                  Zoom to compose final layout before export
+                  Fine-tune composition before export
                 </p>
               </div>
-            </div>
-          )}
-          
-          {(detectedCategories.length > 0 || prompt.trim() === '') && (
-            <div className="mt-6 animate-fade-in">
-              <h3 className="font-bold mb-3 tracking-wide text-red-400">
-                {(() => {
-                  if (prompt.trim() === '') return 'RANDOM MODE'
-                  const analysis = parsePrompt(prompt)
-                  return analysis.isExclusive ? 'EXCLUSIVE MODE' : 'DETECTED CATEGORIES'
-                })()}
-              </h3>
-              {prompt.trim() === '' ? (
-                <div className="flex flex-wrap gap-2">
-                  <span className="bg-blue-600 px-3 py-1 text-xs font-bold tracking-wide rounded-sm text-white">
-                    ALL CATEGORIES
-                  </span>
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {detectedCategories.map(category => (
-                    <span 
-                      key={category} 
-                      className={`px-3 py-1 text-xs font-bold tracking-wide rounded-sm ${
-                        (() => {
-                          const analysis = parsePrompt(prompt)
-                          return analysis.isExclusive ? 'bg-yellow-600 text-black' : 'bg-red-600 text-white'
-                        })()
-                      }`}
-                    >
-                      {(() => {
-                        const analysis = parsePrompt(prompt)
-                        return analysis.isExclusive ? `ONLY ${category.toUpperCase()}` : category.toUpperCase()
-                      })()}
-                    </span>
-                  ))}
-                </div>
-              )}
-              {(() => {
-                if (prompt.trim() === '') {
-                  return (
-                    <p className="text-xs text-blue-400 mt-2">
-                      🎲 Random mode: Elements from all categories will be mixed
-                    </p>
-                  )
-                }
-                const analysis = parsePrompt(prompt)
-                return analysis.isExclusive && (
-                  <p className="text-xs text-yellow-400 mt-2">
-                    🔒 Exclusive mode: All elements will be from this category only
-                  </p>
-                )
-              })()}
             </div>
           )}
 
-          <div className="mt-8 text-sm">
-            <h3 className="font-bold mb-3 tracking-wide">HOW IT WORKS</h3>
-            <div className="text-gray-300 leading-relaxed space-y-2">
-              <p>1. Enter keywords for elements you want featured</p>
-              <p>2. Use "ONLY" or "ALL" for exclusive single-category collages</p>
-              <p>3. Hit randomize to generate your collage</p>
-              <p>4. Zoom to compose, then save or export as high-res PNG</p>
-              <div className="mt-3 pt-3 border-t border-gray-800">
-                <p className="text-xs text-yellow-400">
-                  💡 Try: "ONLY animals", "ALL explosions", "JUST statues"
-                </p>
+          {/* Current Selection Display */}
+          {selectedCategories.length > 0 && (
+            <div className="border-t border-gray-800 pt-4">
+              <h3 className="font-bold mb-3 tracking-wide text-green-400">ACTIVE SELECTION</h3>
+              <div className="space-y-2">
+                <div className="text-sm">
+                  <span className="text-gray-400">Style:</span> {COMPOSITION_TEMPLATES[selectedTemplate as keyof typeof COMPOSITION_TEMPLATES].name}
+                </div>
+                <div className="text-sm">
+                  <span className="text-gray-400">Palette:</span> {COLOR_PALETTES[selectedPalette as keyof typeof COLOR_PALETTES].name}
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {selectedCategories.map(category => (
+                    <span key={category} className="bg-green-600 px-2 py-1 text-xs font-bold rounded-sm">
+                      {category.toUpperCase()}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
         
         <div className="text-xs text-gray-500 border-t border-gray-800 pt-4">
@@ -849,8 +661,8 @@ export default function CollageRandomizer() {
                 <div className="flex items-center justify-center h-full text-gray-400">
                   <div className="text-center p-8">
                     <div className="text-4xl lg:text-6xl mb-4">◯</div>
-                    <p className="text-lg lg:text-xl mb-2">Enter a prompt and hit randomize</p>
-                    <p className="text-sm lg:text-base">to generate your collage</p>
+                    <p className="text-lg lg:text-xl mb-2">Select categories and style</p>
+                    <p className="text-sm lg:text-base">then generate your composition</p>
                     {availableElements.length === 0 && (
                       <p className="text-xs text-red-400 mt-4">
                         No elements available. Visit <a href="/admin" className="underline">admin</a> to upload.
@@ -865,4 +677,4 @@ export default function CollageRandomizer() {
       </div>
     </div>
   )
-}
+}'
