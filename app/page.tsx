@@ -19,11 +19,29 @@ export default function CollageCreator() {
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [draggedElement, setDraggedElement] = useState<Element | null>(null)
+  const [draggedCanvasElement, setDraggedCanvasElement] = useState<CollageElement | null>(null)
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 })
   const canvasRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     loadElements()
   }, [])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (selectedElement && (e.key === 'Delete' || e.key === 'Backspace')) {
+        deleteElement(selectedElement)
+        e.preventDefault()
+      }
+      if (selectedElement && e.key === 'Escape') {
+        setSelectedElementId(null)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedElement])
 
   const loadElements = async () => {
     try {
@@ -228,6 +246,46 @@ export default function CollageCreator() {
     ))
   }
 
+  const handleElementMouseDown = (e: React.MouseEvent, element: CollageElement) => {
+    e.stopPropagation()
+    
+    if (e.detail === 1) {
+      // Single click - start drag
+      setDraggedCanvasElement(element)
+      setSelectedElementId(`${element.id}-${element.x}-${element.y}`)
+      
+      const rect = canvasRef.current?.getBoundingClientRect()
+      if (rect) {
+        setDragOffset({
+          x: e.clientX - rect.left - (element.x / 100) * rect.width,
+          y: e.clientY - rect.top - (element.y / 100) * rect.height
+        })
+      }
+    }
+  }
+
+  const handleCanvasMouseMove = (e: React.MouseEvent) => {
+    if (draggedCanvasElement && canvasRef.current) {
+      const rect = canvasRef.current.getBoundingClientRect()
+      const newX = Math.max(0, Math.min(95, ((e.clientX - rect.left - dragOffset.x) / rect.width) * 100))
+      const newY = Math.max(0, Math.min(95, ((e.clientY - rect.top - dragOffset.y) / rect.height) * 100))
+      
+      updateElement(draggedCanvasElement, { x: newX, y: newY })
+      setDraggedCanvasElement({ ...draggedCanvasElement, x: newX, y: newY })
+    } else if (isDragging && zoom > 1) {
+      // Pan canvas when zoomed
+      setPan(prev => ({
+        x: prev.x + e.movementX,
+        y: prev.y + e.movementY
+      }))
+    }
+  }
+
+  const handleCanvasMouseUp = () => {
+    setDraggedCanvasElement(null)
+    setIsDragging(false)
+  }
+
   const getFilteredElements = () => {
     if (selectedCategory === 'all') return availableElements
     return availableElements.filter(el => el.category === selectedCategory)
@@ -395,7 +453,25 @@ export default function CollageCreator() {
           {/* Element Editor */}
           {selectedElement && (
             <div className="border-t border-gray-800 pt-4">
-              <h3 className="font-bold mb-3 tracking-wide text-yellow-400">ELEMENT EDITOR</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-bold tracking-wide text-yellow-400">ELEMENT EDITOR</h3>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => updateElement(selectedElement, { zIndex: Math.max(...collageElements.map(el => el.zIndex)) + 1 })}
+                    className="bg-blue-600 hover:bg-blue-700 px-2 py-1 text-xs font-semibold"
+                    title="Bring to front"
+                  >
+                    FRONT
+                  </button>
+                  <button
+                    onClick={() => updateElement(selectedElement, { zIndex: Math.min(...collageElements.map(el => el.zIndex)) - 1 })}
+                    className="bg-blue-600 hover:bg-blue-700 px-2 py-1 text-xs font-semibold"
+                    title="Send to back"
+                  >
+                    BACK
+                  </button>
+                </div>
+              </div>
               <div className="space-y-3">
                 <div>
                   <label className="text-xs text-gray-400">SCALE</label>
@@ -422,7 +498,15 @@ export default function CollageCreator() {
                     onChange={(e) => updateElement(selectedElement, { rotation: parseInt(e.target.value) })}
                     className="w-full"
                   />
-                  <div className="text-xs text-gray-500">{selectedElement.rotation}°</div>
+                  <div className="flex justify-between items-center">
+                    <div className="text-xs text-gray-500">{selectedElement.rotation}°</div>
+                    <button
+                      onClick={() => updateElement(selectedElement, { rotation: 0 })}
+                      className="bg-gray-700 hover:bg-gray-600 px-2 py-1 text-xs"
+                    >
+                      RESET
+                    </button>
+                  </div>
                 </div>
                 
                 <div>
@@ -439,13 +523,38 @@ export default function CollageCreator() {
                   <div className="text-xs text-gray-500">{Math.round(selectedElement.opacity * 100)}%</div>
                 </div>
                 
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => updateElement(selectedElement, { 
+                      x: Math.max(0, selectedElement.x - 5),
+                      y: Math.max(0, selectedElement.y - 5)
+                    })}
+                    className="bg-gray-700 hover:bg-gray-600 p-2 text-xs font-semibold"
+                  >
+                    NUDGE ↖
+                  </button>
+                  <button
+                    onClick={() => updateElement(selectedElement, { 
+                      x: Math.min(95, selectedElement.x + 5),
+                      y: Math.max(0, selectedElement.y - 5)
+                    })}
+                    className="bg-gray-700 hover:bg-gray-600 p-2 text-xs font-semibold"
+                  >
+                    NUDGE ↗
+                  </button>
+                </div>
+                
                 <button
                   onClick={() => deleteElement(selectedElement)}
                   className="w-full bg-red-600 hover:bg-red-700 p-2 text-sm font-semibold flex items-center justify-center gap-2"
                 >
                   <Trash2 size={16} />
-                  DELETE ELEMENT
+                  DELETE (Del)
                 </button>
+                
+                <div className="text-xs text-gray-500 text-center">
+                  Drag element to move • Del to delete • Esc to deselect
+                </div>
               </div>
             </div>
           )}
@@ -477,6 +586,24 @@ export default function CollageCreator() {
               EXPORT
             </button>
           </div>
+
+          {/* Quick Actions */}
+          {collageElements.length > 0 && (
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  if (confirm('Clear all elements? This cannot be undone.')) {
+                    setCollageElements([])
+                    setSelectedElementId(null)
+                  }
+                }}
+                className="w-full bg-red-600 hover:bg-red-700 p-3 text-sm font-semibold flex items-center justify-center gap-2"
+              >
+                <Trash2 size={16} />
+                CLEAR ALL
+              </button>
+            </div>
+          )}
 
           {/* Zoom Controls */}
           {collageElements.length > 0 && (
@@ -519,6 +646,7 @@ export default function CollageCreator() {
           <div className="text-center space-y-1">
             <p className="font-bold text-gray-400">{availableElements.length.toLocaleString()} ELEMENTS • {collageElements.length} ON CANVAS</p>
             <p className="text-gray-600">Generate inspiration, then create your masterpiece</p>
+            <p className="text-gray-700">💡 Drag elements on canvas to move • Click to select & edit</p>
           </div>
         </div>
       </div>
@@ -538,24 +666,17 @@ export default function CollageCreator() {
               maxWidth: '600px',
               maxHeight: 'calc(100vh - 120px)',
               overflow: 'hidden',
-              cursor: zoom > 1 ? 'grab' : 'default'
+              cursor: draggedCanvasElement ? 'grabbing' : zoom > 1 ? 'grab' : 'default'
             }}
             onMouseDown={(e) => {
-              if (zoom > 1) {
+              if (!draggedCanvasElement && zoom > 1) {
                 setIsDragging(true)
                 e.preventDefault()
               }
             }}
-            onMouseMove={(e) => {
-              if (isDragging && zoom > 1) {
-                setPan(prev => ({
-                  x: prev.x + e.movementX,
-                  y: prev.y + e.movementY
-                }))
-              }
-            }}
-            onMouseUp={() => setIsDragging(false)}
-            onMouseLeave={() => setIsDragging(false)}
+            onMouseMove={handleCanvasMouseMove}
+            onMouseUp={handleCanvasMouseUp}
+            onMouseLeave={handleCanvasMouseUp}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
               e.preventDefault()
@@ -583,21 +704,19 @@ export default function CollageCreator() {
                 return (
                   <div
                     key={elementId}
-                    className={`collage-element absolute cursor-pointer transition-all duration-200 ${
+                    className={`collage-element absolute select-none transition-all duration-200 ${
                       isSelected ? 'ring-2 ring-yellow-400 ring-offset-2 ring-offset-white' : 'hover:ring-2 hover:ring-blue-400 hover:ring-offset-1 hover:ring-offset-white'
-                    }`}
+                    } ${draggedCanvasElement === element ? 'opacity-80 scale-105 z-50' : ''}`}
                     style={{
                       left: `${element.x}%`,
                       top: `${element.y}%`,
                       transform: `rotate(${element.rotation}deg) scale(${element.scale})`,
-                      opacity: element.opacity,
-                      zIndex: element.zIndex,
-                      transformOrigin: 'center'
+                      opacity: draggedCanvasElement === element ? 0.8 : element.opacity,
+                      zIndex: draggedCanvasElement === element ? 999 : element.zIndex,
+                      transformOrigin: 'center',
+                      cursor: draggedCanvasElement === element ? 'grabbing' : 'grab'
                     }}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setSelectedElementId(selectedElementId === elementId ? null : elementId)
-                    }}
+                    onMouseDown={(e) => handleElementMouseDown(e, element)}
                   >
                     <img
                       src={element.file_url}
