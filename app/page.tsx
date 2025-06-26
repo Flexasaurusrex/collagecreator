@@ -17,6 +17,8 @@ export default function CollageCreator() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [inspirationMode, setInspirationMode] = useState<'minimal' | 'mid' | 'high'>('mid')
   const [isMobile, setIsMobile] = useState(false)
+  const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set())
+  const [visibleElementsCount, setVisibleElementsCount] = useState(isMobile ? 12 : 20)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
@@ -65,7 +67,9 @@ export default function CollageCreator() {
     
     // Mobile detection
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 1024) // lg breakpoint
+      const mobile = window.innerWidth < 1024
+      setIsMobile(mobile)
+      setVisibleElementsCount(mobile ? 12 : 20) // Fewer on mobile for better performance
     }
     
     checkMobile()
@@ -467,6 +471,25 @@ export default function CollageCreator() {
     return availableElements.filter(el => el.category === selectedCategory)
   }
 
+  const loadMoreElements = () => {
+    const increment = isMobile ? 12 : 20
+    setVisibleElementsCount(prev => prev + increment)
+  }
+
+  const handleImageLoad = (elementId: string) => {
+    setLoadedImages(prev => new Set([...prev, elementId]))
+  }
+
+  const handleImageError = (elementId: string) => {
+    console.error('🚨 Failed to load image:', elementId)
+    // Remove from loaded images if it failed
+    setLoadedImages(prev => {
+      const newSet = new Set(prev)
+      newSet.delete(elementId)
+      return newSet
+    })
+  }
+
   const saveCollage = async () => {
     if (collageElements.length === 0) {
       alert('Create a collage first!')
@@ -734,9 +757,13 @@ export default function CollageCreator() {
                         <img
                           src={element.file_url}
                           alt={element.name}
-                          className="max-w-32 max-h-32 object-contain drop-shadow-lg"
+                          className="max-w-32 max-h-32 object-contain drop-shadow-lg pointer-events-none"
                           loading="lazy"
-                          crossOrigin="anonymous"
+                          onError={(e) => {
+                            console.error('🚨 Mobile canvas image failed to load:', element.name)
+                            // Hide broken images
+                            e.currentTarget.style.display = 'none'
+                          }}
                           style={{
                             imageRendering: 'crisp-edges',
                             transform: 'translate3d(0, 0, 0)',
@@ -871,7 +898,12 @@ export default function CollageCreator() {
                 {/* Category Filter */}
                 <select
                   value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedCategory(e.target.value)
+                    // Reset visible count when changing category
+                    setVisibleElementsCount(isMobile ? 12 : 20)
+                    setLoadedImages(new Set()) // Clear loaded images cache
+                  }}
                   className="w-full p-2 bg-gray-800 border border-gray-700 text-white mb-4 text-sm"
                 >
                   <option value="all">All Categories ({availableElements.length})</option>
@@ -885,29 +917,76 @@ export default function CollageCreator() {
                 {/* Elements Grid */}
                 <div className="max-h-80 overflow-y-auto border border-gray-700 bg-gray-900 p-2">
                   <div className="grid grid-cols-3 gap-2">
-                    {getFilteredElements().slice(0, 50).map(element => (
-                      <div
-                        key={element.id}
-                        draggable
-                        onDragStart={() => setDraggedElement(element)}
-                        onDragEnd={() => setDraggedElement(null)}
-                        onClick={() => addElementToCanvas(element)}
-                        className="aspect-square bg-gray-800 border border-gray-600 hover:border-blue-500 cursor-pointer transition-all duration-200 hover:scale-105 p-1 group"
-                        title={`${element.name} - Click to add or drag to canvas`}
-                      >
-                        <img
-                          src={element.file_url}
-                          alt={element.name}
-                          className="w-full h-full object-contain group-hover:opacity-80"
-                          loading="lazy"
-                          crossOrigin="anonymous"
-                        />
-                      </div>
-                    ))}
+                    {getFilteredElements().slice(0, visibleElementsCount).map((element, index) => {
+                      const isLoaded = loadedImages.has(element.id)
+                      const showImage = !isMobile || index < 6 // On mobile, show first 6 immediately
+                      
+                      return (
+                        <div
+                          key={element.id}
+                          draggable={!isMobile} // Disable drag on mobile for better touch experience
+                          onDragStart={() => !isMobile && setDraggedElement(element)}
+                          onDragEnd={() => !isMobile && setDraggedElement(null)}
+                          onClick={() => addElementToCanvas(element)}
+                          className={`aspect-square bg-gray-800 border border-gray-600 hover:border-blue-500 cursor-pointer transition-all duration-200 hover:scale-105 p-1 group relative ${
+                            !isLoaded && showImage ? 'animate-pulse' : ''
+                          }`}
+                          title={`${element.name} - ${isMobile ? 'Tap' : 'Click'} to add${!isMobile ? ' or drag to canvas' : ''}`}
+                        >
+                          {showImage ? (
+                            <>
+                              {!isLoaded && (
+                                <div className="absolute inset-0 bg-gray-700 rounded animate-pulse flex items-center justify-center">
+                                  <div className="w-4 h-4 bg-gray-600 rounded"></div>
+                                </div>
+                              )}
+                              <img
+                                src={element.file_url}
+                                alt={element.name}
+                                className={`w-full h-full object-contain transition-opacity duration-300 ${
+                                  isLoaded ? 'opacity-100' : 'opacity-0'
+                                } group-hover:opacity-80`}
+                                loading="lazy"
+                                onLoad={() => handleImageLoad(element.id)}
+                                onError={() => handleImageError(element.id)}
+                                // Remove crossOrigin for better mobile compatibility
+                                style={{
+                                  imageRendering: 'crisp-edges'
+                                }}
+                              />
+                            </>
+                          ) : (
+                            <div className="w-full h-full bg-gray-700 rounded flex items-center justify-center text-xs text-gray-400">
+                              IMG
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
-                  {getFilteredElements().length > 50 && (
+                  
+                  {/* Load More Button */}
+                  {getFilteredElements().length > visibleElementsCount && (
+                    <div className="text-center mt-4">
+                      <button
+                        onClick={loadMoreElements}
+                        className="bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-semibold transition-colors duration-200"
+                      >
+                        LOAD MORE ({getFilteredElements().length - visibleElementsCount} remaining)
+                      </button>
+                    </div>
+                  )}
+                  
+                  {visibleElementsCount >= getFilteredElements().length && getFilteredElements().length > 20 && (
                     <div className="text-center text-xs text-gray-500 mt-2">
-                      Showing first 50 elements
+                      All {getFilteredElements().length} elements loaded
+                    </div>
+                  )}
+                  
+                  {getFilteredElements().length === 0 && (
+                    <div className="text-center text-gray-500 py-8">
+                      <p className="text-sm">No elements in this category</p>
+                      <p className="text-xs mt-1">Try selecting "All Categories"</p>
                     </div>
                   )}
                 </div>
@@ -1293,7 +1372,11 @@ export default function CollageCreator() {
                           alt={element.name}
                           className="max-w-48 max-h-48 lg:max-w-64 lg:max-h-64 object-contain drop-shadow-lg pointer-events-none"
                           loading="lazy"
-                          crossOrigin="anonymous"
+                          onError={(e) => {
+                            console.error('🚨 Desktop canvas image failed to load:', element.name)
+                            // Hide broken images
+                            e.currentTarget.style.display = 'none'
+                          }}
                           style={{
                             imageRendering: 'crisp-edges',
                             transform: 'translate3d(0, 0, 0)',
