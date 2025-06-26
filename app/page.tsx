@@ -506,24 +506,29 @@ export default function CollageCreator() {
   }
 
   const addElementToCanvas = (element: Element, x: number = 50, y: number = 50) => {
-    // Determine appropriate z-index based on element role
+    // FIXED: Always place manually added elements ON TOP of existing elements
+    
+    // Find the highest z-index currently on canvas
+    const maxZIndex = collageElements.length > 0 
+      ? Math.max(...collageElements.map(el => el.zIndex))
+      : 0
+    
+    // Determine appropriate initial scale based on element role
     const role = identifyElementRole(element)
-    let baseZIndex: number
     let initialScale: number
     
     if (role === 'sky') {
-      baseZIndex = 1 + Math.random() * 3 // SKY LAYER: 1-4
       initialScale = Math.max(1.5, 2.0 + Math.random() * 1.0) // Start larger for sky elements
     } else if (role === 'ground') {
-      baseZIndex = 10 + Math.random() * 5 // GROUND LAYER: 10-15
       initialScale = Math.max(1.2, 1.5 + Math.random() * 0.8) // Start larger for ground elements
     } else if (role === 'midground') {
-      baseZIndex = 20 + Math.random() * 5 // MIDGROUND LAYER: 20-25
       initialScale = Math.max(1.0, 1.0 + Math.random() * 0.5) // Normal starting size
     } else {
-      baseZIndex = 30 + Math.random() * 10 // FOREGROUND LAYER: 30-40
       initialScale = Math.max(0.8, 1.0) // Ensure minimum readable size, no dots
     }
+    
+    // ALWAYS place new elements on top with a buffer
+    const newZIndex = maxZIndex + 10
     
     const newElement: CollageElement = {
       ...element,
@@ -532,10 +537,11 @@ export default function CollageCreator() {
       scale: initialScale,
       rotation: 0,
       opacity: 1.0,
-      zIndex: baseZIndex,
+      zIndex: newZIndex, // FIXED: Always on top
       primary: false
     }
     
+    console.log(`✨ Added ${element.name} on top with z-index: ${newZIndex} (was max: ${maxZIndex})`)
     setCollageElements(prev => [...prev, newElement])
   }
 
