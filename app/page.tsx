@@ -30,9 +30,6 @@ export default function CollageCreator() {
   const [draggedCanvasElement, setDraggedCanvasElement] = useState<CollageElement | null>(null)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const canvasRef = useRef<HTMLDivElement>(null)
-  
-  // OPTIMIZED: Smart image cache management
-  const [imageCache, setImageCache] = useState<Map<string, boolean>>(new Map())
 
   // Calculate selectedElement from selectedElementId
   const selectedElement = selectedElementId 
@@ -105,85 +102,39 @@ export default function CollageCreator() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedElement])
 
-  // FIXED: Working lazy image component (reverted to functional approach)
-  const LazyImage = ({ element, onClick }: { element: Element, onClick: () => void }) => {
+  // SIMPLE: Basic working image component (no fancy optimizations)
+  const SimpleImage = ({ element, onClick }: { element: Element, onClick: () => void }) => {
     const [imageLoaded, setImageLoaded] = useState(false)
     const [imageError, setImageError] = useState(false)
-    const [inView, setInView] = useState(false)
-    const imgRef = useRef<HTMLDivElement>(null)
-
-    useEffect(() => {
-      const currentImg = imgRef.current
-      if (!currentImg) return
-
-      const observer = new IntersectionObserver(
-        (entries) => {
-          entries.forEach(entry => {
-            if (entry.isIntersecting && !inView) {
-              setInView(true)
-              observer.disconnect() // Clean up after triggering
-            }
-          })
-        },
-        { 
-          threshold: 0.1,
-          rootMargin: '50px' // Start loading 50px before entering viewport
-        }
-      )
-
-      observer.observe(currentImg)
-      return () => observer.disconnect()
-    }, [inView])
-
-    const handleLoad = () => {
-      setImageLoaded(true)
-      setImageCache(prev => {
-        const newMap = new Map(prev)
-        newMap.set(element.id, true)
-        return newMap
-      })
-    }
-
-    const handleError = () => {
-      setImageError(true)
-      console.warn(`⚠️ Failed to load: ${element.name}`)
-    }
 
     return (
       <div
-        ref={imgRef}
         className="aspect-square bg-gray-800 border border-gray-600 hover:border-blue-500 cursor-pointer transition-all duration-200 hover:scale-105 p-1 group relative"
         onClick={onClick}
         title={`${element.name} - Click to add`}
       >
-        {inView && !imageError ? (
-          <img
-            src={element.file_url}
-            alt={element.name}
-            className={`w-full h-full object-contain transition-all duration-300 ${
-              imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
-            } group-hover:opacity-80 group-hover:scale-105`}
-            onLoad={handleLoad}
-            onError={handleError}
-            loading="lazy"
-            decoding="async"
-            style={{
-              imageRendering: 'crisp-edges',
-              transform: 'translateZ(0)',
-              backfaceVisibility: 'hidden'
-            }}
-          />
-        ) : null}
+        <img
+          src={element.file_url}
+          alt={element.name}
+          className={`w-full h-full object-contain transition-all duration-300 ${
+            imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+          } group-hover:opacity-80 group-hover:scale-105`}
+          onLoad={() => setImageLoaded(true)}
+          onError={() => {
+            setImageError(true)
+            console.warn(`⚠️ Failed to load: ${element.name} - URL: ${element.file_url}`)
+          }}
+          loading="lazy"
+          style={{
+            imageRendering: 'crisp-edges',
+            transform: 'translateZ(0)',
+            backfaceVisibility: 'hidden'
+          }}
+        />
         
-        {!imageLoaded && inView && !imageError && (
+        {!imageLoaded && !imageError && (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-700">
             <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-          </div>
-        )}
-        
-        {!inView && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
-            <div className="text-xs text-gray-500">IMG</div>
           </div>
         )}
         
@@ -195,6 +146,11 @@ export default function CollageCreator() {
             </div>
           </div>
         )}
+        
+        {/* Debug info */}
+        <div className="absolute bottom-0 left-0 text-xs text-white bg-black bg-opacity-50 px-1">
+          {imageLoaded ? '✓' : imageError ? '✗' : '⏳'}
+        </div>
       </div>
     )
   }
@@ -249,7 +205,6 @@ export default function CollageCreator() {
   // Reset visible count when category changes
   useEffect(() => {
     setVisibleElementsCount(isMobile ? 20 : 30)
-    setImageCache(new Map()) // Clear cache when changing categories
   }, [selectedCategory, isMobile])
 
   // PERFECTED collage generation logic (based on Wild Escape success)
@@ -973,7 +928,7 @@ export default function CollageCreator() {
                 <div className="max-h-80 overflow-y-auto border border-gray-700 bg-gray-900 p-2">
                   <div className="grid grid-cols-3 gap-2">
                     {filteredElements.slice(0, visibleElementsCount).map((element) => (
-                      <LazyImage
+                      <SimpleImage
                         key={element.id}
                         element={element}
                         onClick={() => addElementToCanvas(element)}
