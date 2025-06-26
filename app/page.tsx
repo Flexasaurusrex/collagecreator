@@ -1372,11 +1372,7 @@ export default function CollageCreator() {
                           alt={element.name}
                           className="max-w-48 max-h-48 lg:max-w-64 lg:max-h-64 object-contain drop-shadow-lg pointer-events-none"
                           loading="lazy"
-                          onError={(e) => {
-                            console.error('🚨 Desktop canvas image failed to load:', element.name)
-                            // Hide broken images
-                            e.currentTarget.style.display = 'none'
-                          }}
+                          crossOrigin="anonymous"
                           style={{
                             imageRendering: 'crisp-edges',
                             transform: 'translate3d(0, 0, 0)',
