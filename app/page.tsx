@@ -926,7 +926,7 @@ export default function CollageCreator() {
                       loading="lazy"
                       crossOrigin="anonymous"
                       style={{
-                        imageRendering: 'high-quality',
+                        imageRendering: 'crisp-edges', // Valid TypeScript value for sharp scaling
                         transform: 'translate3d(0, 0, 0)', // Hardware acceleration
                         backfaceVisibility: 'hidden'
                       }}
