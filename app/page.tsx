@@ -24,10 +24,16 @@ export default function CollageCreator() {
   const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 })
   const canvasRef = useRef<HTMLDivElement>(null)
 
+  // Calculate selectedElement from selectedElementId
+  const selectedElement = selectedElementId 
+    ? collageElements.find(el => `${el.id}-${el.x}-${el.y}` === selectedElementId)
+    : null
+
   useEffect(() => {
     loadElements()
   }, [])
 
+  // Keyboard shortcuts - now placed after selectedElement declaration
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (selectedElement && (e.key === 'Delete' || e.key === 'Backspace')) {
@@ -348,10 +354,6 @@ export default function CollageCreator() {
       setIsExporting(false)
     }
   }
-
-  const selectedElement = selectedElementId 
-    ? collageElements.find(el => `${el.id}-${el.x}-${el.y}` === selectedElementId)
-    : null
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col lg:flex-row">
