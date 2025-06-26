@@ -160,7 +160,7 @@ export default function CollageCreator() {
             decoding="async"
             // Remove crossOrigin for better mobile compatibility
             style={{
-              imageRendering: 'high-quality',
+              imageRendering: 'crisp-edges',
               transform: 'translateZ(0)', // GPU acceleration
               backfaceVisibility: 'hidden'
             }}
@@ -880,7 +880,7 @@ export default function CollageCreator() {
                             e.currentTarget.style.display = 'none'
                           }}
                           style={{
-                            imageRendering: 'high-quality',
+                            imageRendering: 'crisp-edges',
                             transform: 'translate3d(0, 0, 0)',
                             backfaceVisibility: 'hidden'
                           }}
@@ -1426,7 +1426,7 @@ export default function CollageCreator() {
                             e.currentTarget.style.filter = 'grayscale(100%)'
                           }}
                           style={{
-                            imageRendering: 'high-quality',
+                            imageRendering: 'crisp-edges',
                             transform: 'translate3d(0, 0, 0)',
                             backfaceVisibility: 'hidden'
                           }}
