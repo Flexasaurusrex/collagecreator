@@ -45,13 +45,69 @@ export default function CollageRandomizer() {
     }
   }
 
-  const parsePrompt = (promptText: string): string[] => {
-    if (!promptText.trim()) return []
+  const parsePrompt = (promptText: string): { categories: string[], isExclusive: boolean, exclusiveCategory?: string } => {
+    if (!promptText.trim()) return { categories: [], isExclusive: false }
     
     const words = promptText.toLowerCase().split(/[\s,]+/).filter(Boolean)
     const foundCategories = new Set<string>()
     
-    // Direct category matches
+    // Check for exclusive keywords first
+    const exclusiveKeywords = ['only', 'all', 'just', 'exclusively', 'purely']
+    const exclusiveMatch = exclusiveKeywords.find(keyword => 
+      words.includes(keyword)
+    )
+    
+    if (exclusiveMatch) {
+      // Find the category that follows the exclusive keyword
+      const keywordIndex = words.indexOf(exclusiveMatch)
+      const potentialCategory = words[keywordIndex + 1]
+      
+      // Check if the word after the exclusive keyword matches a category
+      const matchedCategory = categories.find(category => 
+        category.toLowerCase() === potentialCategory ||
+        category.toLowerCase().includes(potentialCategory) ||
+        potentialCategory?.includes(category.toLowerCase())
+      )
+      
+      if (matchedCategory) {
+        console.log(`Exclusive mode detected: ${exclusiveMatch.toUpperCase()} ${matchedCategory}`)
+        return { 
+          categories: [matchedCategory], 
+          isExclusive: true, 
+          exclusiveCategory: matchedCategory 
+        }
+      }
+      
+      // Also check for category keywords in element names for exclusive mode
+      availableElements.forEach(element => {
+        const elementWords = [
+          ...element.name.toLowerCase().split(/[\s-_]+/),
+          ...element.tags.map(tag => tag.toLowerCase())
+        ]
+        
+        if (words.some(word => 
+          elementWords.some(elementWord => 
+            elementWord === potentialCategory || 
+            (elementWord.length > 3 && elementWord.includes(potentialCategory)) ||
+            (potentialCategory && potentialCategory.length > 3 && potentialCategory.includes(elementWord))
+          )
+        )) {
+          foundCategories.add(element.category)
+        }
+      })
+      
+      if (foundCategories.size === 1) {
+        const exclusiveCategory = Array.from(foundCategories)[0]
+        console.log(`Exclusive mode detected via element matching: ${exclusiveMatch.toUpperCase()} ${exclusiveCategory}`)
+        return { 
+          categories: [exclusiveCategory], 
+          isExclusive: true, 
+          exclusiveCategory 
+        }
+      }
+    }
+    
+    // Normal multi-category matching
     categories.forEach(category => {
       if (words.some(word => 
         category.toLowerCase().includes(word) || 
@@ -61,17 +117,15 @@ export default function CollageRandomizer() {
       }
     })
     
-    // Enhanced file name and tag matching
+    // Enhanced file name and tag matching for normal mode
     availableElements.forEach(element => {
       const elementWords = [
         ...element.name.toLowerCase().split(/[\s-_]+/),
         ...element.tags.map(tag => tag.toLowerCase())
       ]
       
-      // Check for direct matches in file names (more precise)
       const hasDirectMatch = words.some(word => 
         elementWords.some(elementWord => {
-          // Exact match or close substring match
           return elementWord === word || 
                  (elementWord.length > 3 && elementWord.includes(word)) ||
                  (word.length > 3 && word.includes(elementWord))
@@ -83,7 +137,40 @@ export default function CollageRandomizer() {
       }
     })
     
-    return Array.from(foundCategories)
+    return { 
+      categories: Array.from(foundCategories), 
+      isExclusive: false 
+    }
+  }
+
+  const getMatchingElements = (promptText: string, categoryElements: Element[]): Element[] => {
+    if (!promptText.trim()) return categoryElements
+    
+    const words = promptText.toLowerCase().split(/[\s,]+/).filter(Boolean)
+    const scoredElements = categoryElements.map(element => {
+      let score = 0
+      const elementWords = [
+        ...element.name.toLowerCase().split(/[\s-_]+/),
+        ...element.tags.map(tag => tag.toLowerCase())
+      ]
+      
+      // Score based on keyword matches in file names
+      words.forEach(word => {
+        elementWords.forEach(elementWord => {
+          if (elementWord === word) score += 10 // Exact match
+          else if (elementWord.includes(word) && word.length > 2) score += 5 // Substring match
+          else if (word.includes(elementWord) && elementWord.length > 2) score += 3 // Reverse substring
+        })
+      })
+      
+      return { element, score }
+    })
+    
+    // Return elements sorted by relevance score, fallback to random if no matches
+    const relevantElements = scoredElements.filter(item => item.score > 0)
+    return relevantElements.length > 0 
+      ? relevantElements.sort((a, b) => b.score - a.score).map(item => item.element)
+      : categoryElements
   }
 
   const getElementLayer = (element: Element, scale: number, primary: boolean): number => {
@@ -117,6 +204,23 @@ export default function CollageRandomizer() {
     return baseZIndex + scaleAdjustment + primaryBoost + Math.floor(Math.random() * 3)
   }
 
+  const getSmartScale = (element: Element, primary: boolean): number => {
+    // Smart scaling based on element type
+    const backgroundCategories = ['nature', 'architecture', 'space', 'vintage']
+    const foregroundCategories = ['people', 'animals', 'explosions']
+    
+    if (backgroundCategories.includes(element.category)) {
+      // Background elements should be larger
+      return primary ? 0.6 + Math.random() * 0.4 : 0.4 + Math.random() * 0.5
+    } else if (foregroundCategories.includes(element.category)) {
+      // Foreground elements should be smaller to medium
+      return primary ? 0.3 + Math.random() * 0.4 : 0.2 + Math.random() * 0.3
+    } else {
+      // Mid-ground elements - balanced sizing
+      return primary ? 0.4 + Math.random() * 0.4 : 0.25 + Math.random() * 0.4
+    }
+  }
+
   const calculateCanvasCoverage = (elements: CollageElement[], canvasWidth: number, canvasHeight: number): number => {
     // Create a grid to track coverage (simplified approach)
     const gridSize = 20 // 20x20 grid for coverage calculation
@@ -148,64 +252,39 @@ export default function CollageRandomizer() {
     return (coveredCells / totalCells) * 100
   }
 
-  const getSmartScale = (element: Element, primary: boolean): number => {
-    // Smart scaling based on element type
-    const backgroundCategories = ['nature', 'architecture', 'space', 'vintage']
-    const foregroundCategories = ['people', 'animals', 'explosions']
+  const fillCanvasGaps = (elements: CollageElement[], targetCoverage: number = 85): CollageElement[] => {
+    const canvasWidth = 600 // Approximate canvas width
+    const canvasHeight = 800 // Approximate canvas height (3:4 ratio)
     
-    if (backgroundCategories.includes(element.category)) {
-      // Background elements should be larger
-      return primary ? 0.6 + Math.random() * 0.4 : 0.4 + Math.random() * 0.5
-    } else if (foregroundCategories.includes(element.category)) {
-      // Foreground elements should be smaller to medium
-      return primary ? 0.3 + Math.random() * 0.4 : 0.2 + Math.random() * 0.3
-    } else {
-      // Mid-ground elements - balanced sizing
-      return primary ? 0.4 + Math.random() * 0.4 : 0.25 + Math.random() * 0.4
-    }
-  }
-    // Smart scaling based on element type
-    const backgroundCategories = ['nature', 'architecture', 'space', 'vintage']
-    const foregroundCategories = ['people', 'animals', 'explosions']
+    let currentElements = [...elements]
+    let coverage = calculateCanvasCoverage(currentElements, canvasWidth, canvasHeight)
     
-    if (backgroundCategories.includes(element.category)) {
-      // Background elements should be larger
-      return primary ? 0.6 + Math.random() * 0.4 : 0.4 + Math.random() * 0.5
-    } else if (foregroundCategories.includes(element.category)) {
-      // Foreground elements should be smaller to medium
-      return primary ? 0.3 + Math.random() * 0.4 : 0.2 + Math.random() * 0.3
-    } else {
-      // Mid-ground elements - balanced sizing
-      return primary ? 0.4 + Math.random() * 0.4 : 0.25 + Math.random() * 0.4
-    }
-  }
-    if (!promptText.trim()) return categoryElements
+    console.log(`Initial coverage: ${coverage.toFixed(1)}%`)
     
-    const words = promptText.toLowerCase().split(/[\s,]+/).filter(Boolean)
-    const scoredElements = categoryElements.map(element => {
-      let score = 0
-      const elementWords = [
-        ...element.name.toLowerCase().split(/[\s-_]+/),
-        ...element.tags.map(tag => tag.toLowerCase())
-      ]
+    // Add background filler elements if coverage is too low
+    let attempts = 0
+    while (coverage < targetCoverage && attempts < 50 && availableElements.length > 0) {
+      const randomElement = availableElements[Math.floor(Math.random() * availableElements.length)]
       
-      // Score based on keyword matches in file names
-      words.forEach(word => {
-        elementWords.forEach(elementWord => {
-          if (elementWord === word) score += 10 // Exact match
-          else if (elementWord.includes(word) && word.length > 2) score += 5 // Substring match
-          else if (word.includes(elementWord) && elementWord.length > 2) score += 3 // Reverse substring
-        })
-      })
+      // Create a filler element with smart placement
+      const fillerElement: CollageElement = {
+        ...randomElement,
+        x: Math.random() * 85,
+        y: Math.random() * 90,
+        scale: 0.3 + Math.random() * 0.6, // Medium to large for filling
+        rotation: (Math.random() - 0.5) * 360, // Full rotation for variety
+        opacity: 0.3 + Math.random() * 0.4, // Lower opacity for background fill
+        zIndex: Math.floor(Math.random() * 5), // Low z-index (background)
+        primary: false
+      }
       
-      return { element, score }
-    })
+      currentElements.push(fillerElement)
+      coverage = calculateCanvasCoverage(currentElements, canvasWidth, canvasHeight)
+      attempts++
+    }
     
-    // Return elements sorted by relevance score, fallback to random if no matches
-    const relevantElements = scoredElements.filter(item => item.score > 0)
-    return relevantElements.length > 0 
-      ? relevantElements.sort((a, b) => b.score - a.score).map(item => item.element)
-      : categoryElements
+    console.log(`Final coverage: ${coverage.toFixed(1)}% after ${attempts} filler elements`)
+    return currentElements
   }
 
   const generateCollage = async () => {
@@ -237,6 +316,8 @@ export default function CollageRandomizer() {
       }
       
       const elements: CollageElement[] = []
+      const exclusiveKeywords = ['only', 'all', 'just', 'exclusively', 'purely']
+      const words = prompt.toLowerCase().split(/[\s,]+/).filter(Boolean)
       
       console.log('Prompt analysis:', promptAnalysis)
       
@@ -705,7 +786,6 @@ export default function CollageRandomizer() {
                 transformOrigin: 'center',
                 transition: isDragging ? 'none' : 'transform 0.2s ease-out'
               }}
-            >
             >
               {collageElements.map((element, index) => (
                 <div
