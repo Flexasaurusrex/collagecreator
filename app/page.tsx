@@ -38,18 +38,20 @@ export default function CollageCreator() {
     })
   }, [selectedElementId, selectedElement, collageElements.length])
 
-  // Click outside canvas to deselect
+  // Click outside canvas to deselect - with proper timing
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      // Check if click is outside the canvas area
-      if (canvasRef.current && !canvasRef.current.contains(e.target as Node)) {
-        // Also check if click is not in the left panel (so editing tools don't deselect)
-        const leftPanel = document.querySelector('.w-full.lg\\:w-1\\/3') as HTMLElement
-        if (!leftPanel?.contains(e.target as Node)) {
-          console.log('🎯 Clicked outside canvas - deselecting')
-          setSelectedElementId(null)
+      // Small delay to avoid interfering with element clicks
+      setTimeout(() => {
+        if (canvasRef.current && !canvasRef.current.contains(e.target as Node)) {
+          // Also check if click is not in the left panel
+          const leftPanel = document.querySelector('.w-full.lg\\:w-1\\/3') as HTMLElement
+          if (!leftPanel?.contains(e.target as Node)) {
+            console.log('🎯 Clicked outside canvas - deselecting')
+            setSelectedElementId(null)
+          }
         }
-      }
+      }, 10) // Small delay to let element clicks process first
     }
 
     document.addEventListener('click', handleClickOutside)
@@ -310,33 +312,36 @@ export default function CollageCreator() {
   }
 
   const updateElement = (elementToUpdate: CollageElement, updates: Partial<CollageElement>) => {
-    // Use requestAnimationFrame for smooth updates
-    requestAnimationFrame(() => {
-      setCollageElements(prev => prev.map(el => 
-        (el.id === elementToUpdate.id && el.x === elementToUpdate.x && el.y === elementToUpdate.y) 
-          ? { ...el, ...updates }
-          : el
-      ))
-    })
+    // Direct update without requestAnimationFrame for immediate response
+    setCollageElements(prev => prev.map(el => 
+      (el.id === elementToUpdate.id && el.x === elementToUpdate.x && el.y === elementToUpdate.y) 
+        ? { ...el, ...updates }
+        : el
+    ))
   }
 
-  const handleElementMouseDown = (e: React.MouseEvent, element: CollageElement) => {
+  const handleElementClick = (e: React.MouseEvent, element: CollageElement) => {
     e.stopPropagation()
     
     // Right click or Ctrl+click to delete
     if (e.button === 2 || e.ctrlKey) {
       e.preventDefault()
+      console.log('🗑️ Right-click delete:', element.name)
       deleteElement(element)
       return
     }
     
     // Left click to select
     const elementId = `${element.id}-${element.x}-${element.y}`
-    console.log('🎯 Element clicked:', element.name, 'ID:', elementId)
+    console.log('🎯 Element selected:', element.name, 'ID:', elementId)
     setSelectedElementId(elementId)
+  }
+
+  const handleElementMouseDown = (e: React.MouseEvent, element: CollageElement) => {
+    e.stopPropagation()
     
-    // Start drag if not already dragging
-    if (!draggedCanvasElement) {
+    // Only handle dragging, not selection (selection handled by onClick)
+    if (e.button === 0 && !e.ctrlKey) { // Left click only
       setDraggedCanvasElement(element)
       
       const rect = canvasRef.current?.getBoundingClientRect()
@@ -351,25 +356,18 @@ export default function CollageCreator() {
 
   const handleCanvasMouseMove = (e: React.MouseEvent) => {
     if (draggedCanvasElement && canvasRef.current) {
-      // Use requestAnimationFrame for smooth dragging
-      requestAnimationFrame(() => {
-        const rect = canvasRef.current?.getBoundingClientRect()
-        if (rect) {
-          const newX = Math.max(0, Math.min(95, ((e.clientX - rect.left - dragOffset.x) / rect.width) * 100))
-          const newY = Math.max(0, Math.min(95, ((e.clientY - rect.top - dragOffset.y) / rect.height) * 100))
-          
-          updateElement(draggedCanvasElement, { x: newX, y: newY })
-          setDraggedCanvasElement({ ...draggedCanvasElement, x: newX, y: newY })
-        }
-      })
+      const rect = canvasRef.current.getBoundingClientRect()
+      const newX = Math.max(0, Math.min(95, ((e.clientX - rect.left - dragOffset.x) / rect.width) * 100))
+      const newY = Math.max(0, Math.min(95, ((e.clientY - rect.top - dragOffset.y) / rect.height) * 100))
+      
+      updateElement(draggedCanvasElement, { x: newX, y: newY })
+      setDraggedCanvasElement({ ...draggedCanvasElement, x: newX, y: newY })
     } else if (isDragging && zoom > 1) {
-      // Pan canvas when zoomed - also use requestAnimationFrame
-      requestAnimationFrame(() => {
-        setPan(prev => ({
-          x: prev.x + e.movementX,
-          y: prev.y + e.movementY
-        }))
-      })
+      // Pan canvas when zoomed
+      setPan(prev => ({
+        x: prev.x + e.movementX,
+        y: prev.y + e.movementY
+      }))
     }
   }
 
@@ -607,11 +605,6 @@ export default function CollageCreator() {
                     step="0.1"
                     value={selectedElement.scale}
                     onChange={(e) => updateElement(selectedElement, { scale: parseFloat(e.target.value) })}
-                    onInput={(e) => {
-                      // Immediate visual feedback without triggering full update
-                      const target = e.target as HTMLInputElement
-                      updateElement(selectedElement, { scale: parseFloat(target.value) })
-                    }}
                     className="w-full accent-yellow-400"
                   />
                   <div className="text-xs text-gray-500">{selectedElement.scale.toFixed(1)}x</div>
@@ -626,10 +619,6 @@ export default function CollageCreator() {
                     step="5"
                     value={selectedElement.rotation}
                     onChange={(e) => updateElement(selectedElement, { rotation: parseInt(e.target.value) })}
-                    onInput={(e) => {
-                      const target = e.target as HTMLInputElement
-                      updateElement(selectedElement, { rotation: parseInt(target.value) })
-                    }}
                     className="w-full accent-yellow-400"
                   />
                   <div className="flex justify-between items-center">
@@ -652,10 +641,6 @@ export default function CollageCreator() {
                     step="0.05"
                     value={selectedElement.opacity}
                     onChange={(e) => updateElement(selectedElement, { opacity: parseFloat(e.target.value) })}
-                    onInput={(e) => {
-                      const target = e.target as HTMLInputElement
-                      updateElement(selectedElement, { opacity: parseFloat(target.value) })
-                    }}
                     className="w-full accent-yellow-400"
                   />
                   <div className="text-xs text-gray-500">{Math.round(selectedElement.opacity * 100)}%</div>
@@ -816,8 +801,8 @@ export default function CollageCreator() {
           <div className="text-center space-y-1">
             <p className="font-bold text-gray-400">{availableElements.length.toLocaleString()} ELEMENTS • {collageElements.length} ON CANVAS</p>
             <p className="text-gray-600">Generate inspiration, then create your masterpiece</p>
-            <p className="text-yellow-400 font-semibold">💡 CLICK elements to select • CLICK OUTSIDE to deselect</p>
-            <p className="text-gray-700">DOUBLE-CLICK to delete • GPU optimized for smooth performance</p>
+            <p className="text-yellow-400 font-semibold">💡 SINGLE-CLICK elements to select • CLICK OUTSIDE to deselect</p>
+            <p className="text-gray-700">DOUBLE-CLICK to delete • Optimized for smooth performance</p>
           </div>
         </div>
       </div>
@@ -870,13 +855,6 @@ export default function CollageCreator() {
                 backfaceVisibility: 'hidden',
                 perspective: 1000
               }}
-              onClick={(e) => {
-                // Only deselect if clicking directly on canvas background (not on elements)
-                if (e.target === canvasRef.current) {
-                  console.log('🎯 Clicked canvas background - deselecting')
-                  setSelectedElementId(null)
-                }
-              }}
             >
               {collageElements.map((element, index) => {
                 const elementId = `${element.id}-${element.x}-${element.y}`
@@ -902,12 +880,7 @@ export default function CollageCreator() {
                       perspective: 1000 // Enable 3D context
                     }}
                     onMouseDown={(e) => handleElementMouseDown(e, element)}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      const elementId = `${element.id}-${element.x}-${element.y}`
-                      console.log('🎯 Element clicked (onClick):', element.name, 'ID:', elementId)
-                      setSelectedElementId(elementId)
-                    }}
+                    onClick={(e) => handleElementClick(e, element)}
                     onDoubleClick={(e) => {
                       e.stopPropagation()
                       console.log('🗑️ Double-click delete:', element.name)
