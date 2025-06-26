@@ -146,33 +146,63 @@ export default function CollageRandomizer() {
     })
   }
 
-  // AGGRESSIVE collage placement - FILL THE DAMN CANVAS!
-  const getCollageePlacement = (layerType: 'background' | 'midground' | 'foreground', template: any) => {
-    if (layerType === 'background') {
-      // MASSIVE background elements that DOMINATE the canvas
+  // FOUNDATIONAL collage placement following REAL collage logic
+  const getFoundationPlacement = (elementType: 'sky' | 'ground' | 'midground' | 'foreground') => {
+    if (elementType === 'sky') {
+      // SKY: 1-2 elements filling TOP 30-40% of canvas, minimal rotation
       return {
-        x: -10 + Math.random() * 20, // Can go slightly off canvas
-        y: -10 + Math.random() * 20,
-        scale: 2.0 + Math.random() * 1.5, // HUGE elements (2x-3.5x normal)
-        rotation: (Math.random() - 0.5) * 30
+        x: -5 + Math.random() * 10, // Can extend slightly beyond canvas
+        y: 0 + Math.random() * 15, // TOP portion only
+        scale: 2.5 + Math.random() * 1.0, // MASSIVE sky elements
+        rotation: (Math.random() - 0.5) * 10 // MINIMAL rotation (±5 degrees)
       }
-    } else if (layerType === 'midground') {
-      // Medium elements that OVERLAP significantly
+    } else if (elementType === 'ground') {
+      // BUILDINGS/MONUMENTS/LANDSCAPES: BOTTOM 60-70%, VERTICAL orientation
       return {
-        x: Math.random() * 60, // More concentrated placement
-        y: Math.random() * 70,
-        scale: 1.2 + Math.random() * 1.0, // Large overlapping elements
-        rotation: (Math.random() - 0.5) * 60
+        x: -5 + Math.random() * 10,
+        y: 30 + Math.random() * 40, // BOTTOM 60-70% of canvas
+        scale: 2.0 + Math.random() * 1.5, // Large foundational elements
+        rotation: (Math.random() - 0.5) * 8 // VERY minimal tilt (±4 degrees)
+      }
+    } else if (elementType === 'midground') {
+      // Supporting elements that work with the foundation
+      return {
+        x: Math.random() * 70,
+        y: 20 + Math.random() * 60, // Middle area overlapping both zones
+        scale: 1.0 + Math.random() * 1.0,
+        rotation: (Math.random() - 0.5) * 45
       }
     } else {
-      // Foreground details - smaller but still substantial
+      // Foreground details scattered throughout
       return {
         x: Math.random() * 90,
         y: Math.random() * 90,
-        scale: 0.6 + Math.random() * 0.8, // Decent sized foreground
+        scale: 0.5 + Math.random() * 0.8,
         rotation: (Math.random() - 0.5) * 90
       }
     }
+  }
+
+  // Identify element types for proper foundational placement
+  const identifyElementType = (element: Element): 'sky' | 'ground' | 'other' => {
+    const name = element.name.toLowerCase()
+    const category = element.category.toLowerCase()
+    
+    // SKY elements
+    const skyKeywords = ['sky', 'cloud', 'sunset', 'sunrise', 'horizon', 'space', 'star', 'moon', 'sun']
+    if (skyKeywords.some(keyword => name.includes(keyword)) || 
+        ['space'].includes(category)) {
+      return 'sky'
+    }
+    
+    // GROUND elements (buildings, monuments, landscapes)
+    const groundKeywords = ['building', 'monument', 'landscape', 'mountain', 'architecture', 'structure', 'city', 'tower', 'bridge']
+    if (groundKeywords.some(keyword => name.includes(keyword)) || 
+        ['architecture', 'monuments', 'landscapes'].includes(category)) {
+      return 'ground'
+    }
+    
+    return 'other'
   }
 
   // Get z-index based on template layering order
@@ -215,63 +245,79 @@ export default function CollageRandomizer() {
       
       const elements: CollageElement[] = []
       
-      // STEP 1: Place MASSIVE background elements that DOMINATE the canvas
-      const backgroundCategories = template.layering.slice(0, 2)
-      const bgElements = workingElements.filter(el => backgroundCategories.includes(el.category))
-      
-      // Place 2-3 ENORMOUS background elements that fill most of the canvas
-      const bgCount = Math.floor(Math.random() * 2) + 2 // Just 2-3 massive elements
-      for (let i = 0; i < bgCount && bgElements.length > 0; i++) {
-        const element = bgElements[Math.floor(Math.random() * bgElements.length)]
-        const placement = getCollageePlacement('background', template)
-        
-        elements.push({
-          ...element,
-          ...placement,
-          opacity: 0.7 + Math.random() * 0.3, // Higher opacity
-          zIndex: 1 + Math.random() * 3,
-          primary: true
-        })
+      // STEP 1: FOUNDATION - Place SKY elements (1-2 max, TOP 30-40%)
+      const skyElements = workingElements.filter(el => identifyElementType(el) === 'sky')
+      if (skyElements.length > 0) {
+        const skyCount = Math.floor(Math.random() * 2) + 1 // 1-2 sky elements max
+        for (let i = 0; i < skyCount; i++) {
+          const element = skyElements[Math.floor(Math.random() * skyElements.length)]
+          const placement = getFoundationPlacement('sky')
+          
+          elements.push({
+            ...element,
+            ...placement,
+            opacity: 0.8 + Math.random() * 0.2,
+            zIndex: 1 + i, // Sky is lowest layer
+            primary: true
+          })
+        }
+        console.log(`Placed ${skyCount} SKY foundation elements`)
       }
       
-      // STEP 2: Layer LOTS of overlapping midground elements
-      const midgroundCategories = template.layering.slice(1, 4)
-      const midElements = workingElements.filter(el => midgroundCategories.includes(el.category))
+      // STEP 2: FOUNDATION - Place GROUND elements (buildings/monuments/landscapes, BOTTOM 60-70%)
+      const groundElements = workingElements.filter(el => identifyElementType(el) === 'ground')
+      if (groundElements.length > 0) {
+        const groundCount = Math.floor(Math.random() * 3) + 2 // 2-4 ground elements
+        for (let i = 0; i < groundCount; i++) {
+          const element = groundElements[Math.floor(Math.random() * groundElements.length)]
+          const placement = getFoundationPlacement('ground')
+          
+          elements.push({
+            ...element,
+            ...placement,
+            opacity: 0.8 + Math.random() * 0.2,
+            zIndex: 5 + i, // Ground layer above sky
+            primary: true
+          })
+        }
+        console.log(`Placed ${groundCount} GROUND foundation elements`)
+      }
       
-      // Dense midground layer - 8-12 overlapping elements
-      const midCount = Math.floor(Math.random() * 5) + 8
-      for (let i = 0; i < midCount && midElements.length > 0; i++) {
-        const element = midElements[Math.floor(Math.random() * midElements.length)]
-        const placement = getCollageePlacement('midground', template)
+      // STEP 3: MIDGROUND - Supporting elements that work with foundation
+      const otherElements = workingElements.filter(el => identifyElementType(el) === 'other')
+      const midCount = Math.floor(Math.random() * 8) + 6 // 6-13 midground elements
+      for (let i = 0; i < midCount && otherElements.length > 0; i++) {
+        const element = otherElements[Math.floor(Math.random() * otherElements.length)]
+        const placement = getFoundationPlacement('midground')
         
         elements.push({
           ...element,
           ...placement,
           opacity: 0.6 + Math.random() * 0.4,
-          zIndex: 10 + Math.random() * 10,
-          primary: i < 4 // First 4 are primary
+          zIndex: 15 + Math.random() * 10,
+          primary: i < 3 // First 3 are primary
         })
       }
       
-      // STEP 3: DENSE foreground details layer
-      const foregroundCount = Math.floor(Math.random() * 20) + 25 // 25-44 foreground elements!
+      // STEP 4: FOREGROUND - Dense details layer
+      const foregroundCount = Math.floor(Math.random() * 20) + 15 // 15-34 foreground elements
       for (let i = 0; i < foregroundCount; i++) {
         const element = workingElements[Math.floor(Math.random() * workingElements.length)]
-        const placement = getCollageePlacement('foreground', template)
+        const placement = getFoundationPlacement('foreground')
         
         elements.push({
           ...element,
           ...placement,
           opacity: 0.5 + Math.random() * 0.5,
-          zIndex: 20 + Math.random() * 15,
+          zIndex: 30 + Math.random() * 15,
           primary: false
         })
       }
       
-      // STEP 4: CHAOS MODE - absolute madness
+      // STEP 5: CHAOS MODE - additional madness if selected
       let chaosCount = 0
       if (selectedTemplate === 'chaos') {
-        chaosCount = Math.floor(Math.random() * 30) + 30 // 30-59 MORE elements!
+        chaosCount = Math.floor(Math.random() * 25) + 20 // 20-44 MORE chaos elements!
         for (let i = 0; i < chaosCount; i++) {
           const element = workingElements[Math.floor(Math.random() * workingElements.length)]
           
@@ -279,19 +325,27 @@ export default function CollageRandomizer() {
             ...element,
             x: Math.random() * 100,
             y: Math.random() * 100, 
-            scale: 0.8 + Math.random() * 1.5, // Wide range of scales
-            rotation: Math.random() * 360,
+            scale: 0.6 + Math.random() * 1.2, // Wide range of scales
+            rotation: Math.random() * 360, // Full chaos rotation
             opacity: 0.3 + Math.random() * 0.7,
-            zIndex: Math.random() * 50,
+            zIndex: Math.random() * 60, // Can appear anywhere in stack
             primary: false
           })
         }
+        console.log(`Added ${chaosCount} CHAOS elements for maximum density`)
       }
       
       // Sort by z-index for proper layering
       elements.sort((a, b) => a.zIndex - b.zIndex)
       
-      console.log(`Generated DENSE collage: ${elements.length} elements (${bgCount} massive backgrounds, ${midCount} overlapping midgrounds, ${foregroundCount} dense foreground${chaosCount > 0 ? ` + ${chaosCount} chaos elements` : ''})`)
+      const skyCount = elements.filter(el => identifyElementType(el) === 'sky').length
+      const groundCount = elements.filter(el => identifyElementType(el) === 'ground').length
+      
+      console.log(`Generated FOUNDATIONAL collage: ${elements.length} total elements`)
+      console.log(`Foundation: ${skyCount} sky (top 30-40%) + ${groundCount} ground (bottom 60-70%)`)
+      console.log(`Layers: ${midCount} midground + ${foregroundCount} foreground${chaosCount > 0 ? ` + ${chaosCount} chaos` : ''}`)
+      
+      setCollageElements(elements)
       // Sort by z-index for proper layering
       elements.sort((a, b) => a.zIndex - b.zIndex)
       
