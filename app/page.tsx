@@ -65,39 +65,39 @@ export default function CollageCreator() {
   const getFoundationalPlacement = (role: 'sky' | 'ground' | 'midground' | 'foreground') => {
     if (role === 'sky') {
       return {
-        x: -20 + Math.random() * 40, // Can extend beyond canvas
-        y: -10 + Math.random() * 20, // TOP 30% only
-        scale: 4.5 + Math.random() * 2.0, // MASSIVE sky (4.5x-6.5x)
-        rotation: (Math.random() - 0.5) * 8, // Minimal rotation
-        opacity: 0.85 + Math.random() * 0.15,
-        zIndex: 1
+        x: -30 + Math.random() * 60, // Can extend well beyond canvas for full coverage
+        y: -20 + Math.random() * 25, // TOP 30-40% coverage
+        scale: 6.0 + Math.random() * 3.0, // EVEN MORE MASSIVE sky (6x-9x)
+        rotation: (Math.random() - 0.5) * 4, // Almost perfectly horizontal
+        opacity: 0.8 + Math.random() * 0.2,
+        zIndex: 1 + Math.random() * 3 // SKY LAYER: 1-4 (ALWAYS furthest back)
       }
     } else if (role === 'ground') {
       return {
-        x: -20 + Math.random() * 40, // Can extend beyond
-        y: 40 + Math.random() * 40, // BOTTOM 60% 
-        scale: 3.8 + Math.random() * 1.8, // MASSIVE ground (3.8x-5.6x)
-        rotation: (Math.random() - 0.5) * 6, // VERY minimal tilt
-        opacity: 0.9 + Math.random() * 0.1,
-        zIndex: 2 + Math.random() * 2
+        x: -30 + Math.random() * 60, // Extend beyond for full coverage
+        y: 55 + Math.random() * 30, // BOTTOM 60-70% coverage
+        scale: 5.0 + Math.random() * 2.5, // MASSIVE ground coverage (5x-7.5x)
+        rotation: (Math.random() - 0.5) * 3, // Almost perfectly vertical
+        opacity: 0.85 + Math.random() * 0.15,
+        zIndex: 10 + Math.random() * 5 // GROUND LAYER: 10-15 (behind midground/foreground)
       }
     } else if (role === 'midground') {
       return {
-        x: 5 + Math.random() * 70,
-        y: 25 + Math.random() * 50,
-        scale: 1.8 + Math.random() * 1.2, // Medium (1.8x-3x)
-        rotation: (Math.random() - 0.5) * 35,
-        opacity: 0.8 + Math.random() * 0.2,
-        zIndex: 10 + Math.random() * 8
+        x: 20 + Math.random() * 60, // More centered placement
+        y: 30 + Math.random() * 40,
+        scale: 2.2 + Math.random() * 1.8, // Larger midground (2.2x-4x)
+        rotation: (Math.random() - 0.5) * 25,
+        opacity: 0.85 + Math.random() * 0.15,
+        zIndex: 20 + Math.random() * 5 // MIDGROUND LAYER: 20-25
       }
     } else {
       return {
-        x: 10 + Math.random() * 80,
-        y: 15 + Math.random() * 70,
-        scale: 0.9 + Math.random() * 1.0, // Small foreground (0.9x-1.9x)
-        rotation: (Math.random() - 0.5) * 60,
-        opacity: 0.75 + Math.random() * 0.25,
-        zIndex: 20 + Math.random() * 15
+        x: 25 + Math.random() * 50, // More strategic placement
+        y: 20 + Math.random() * 60,
+        scale: 1.2 + Math.random() * 1.3, // Bigger foreground details (1.2x-2.5x)
+        rotation: (Math.random() - 0.5) * 45,
+        opacity: 0.8 + Math.random() * 0.2,
+        zIndex: 30 + Math.random() * 10 // FOREGROUND LAYER: 30-40 (always on top)
       }
     }
   }
@@ -106,26 +106,27 @@ export default function CollageCreator() {
     const name = element.name.toLowerCase()
     const category = element.category.toLowerCase()
     
-    // SKY elements
-    const skyKeywords = ['sky', 'cloud', 'sunset', 'sunrise', 'horizon', 'space', 'star', 'moon', 'sun']
-    if (skyKeywords.some(keyword => name.includes(keyword)) || ['sky', 'space'].includes(category)) {
+    // SKY elements - prioritize anything that could be background
+    const skyKeywords = ['sky', 'cloud', 'sunset', 'sunrise', 'horizon', 'space', 'star', 'moon', 'sun', 'background', 'texture', 'gradient', 'atmosphere']
+    if (skyKeywords.some(keyword => name.includes(keyword)) || ['sky', 'space', 'backgrounds', 'textures'].includes(category)) {
       return 'sky'
     }
     
-    // GROUND elements (buildings, architecture, landscapes)
-    const groundKeywords = ['building', 'architecture', 'landscape', 'city', 'house', 'structure', 'monument']
+    // GROUND elements - buildings, architecture, landscapes that should be foundation
+    const groundKeywords = ['building', 'architecture', 'landscape', 'city', 'house', 'structure', 'monument', 'tower', 'bridge', 'wall', 'ground', 'floor', 'foundation']
     if (groundKeywords.some(keyword => name.includes(keyword)) || 
-        ['architecture', 'buildings', 'landscapes', 'monuments'].includes(category)) {
+        ['architecture', 'buildings', 'landscapes', 'monuments', 'structures'].includes(category)) {
       return 'ground'
     }
     
-    // MIDGROUND (people, vehicles, large objects)
-    const midgroundKeywords = ['people', 'person', 'vehicle', 'car', 'animal', 'statue']
+    // MIDGROUND - people, vehicles, large objects that are focal points
+    const midgroundKeywords = ['people', 'person', 'vehicle', 'car', 'animal', 'statue', 'furniture', 'tree', 'plant', 'large']
     if (midgroundKeywords.some(keyword => name.includes(keyword)) || 
-        ['people', 'vehicles', 'animals', 'statues'].includes(category)) {
+        ['people', 'vehicles', 'animals', 'statues', 'furniture', 'nature'].includes(category)) {
       return 'midground'
     }
     
+    // Everything else is FOREGROUND (small details, objects, decorations)
     return 'foreground'
   }
 
@@ -143,24 +144,37 @@ export default function CollageCreator() {
       
       const elements: CollageElement[] = []
       
-      // SKY FOUNDATION - 1 massive element
+      // SKY FOUNDATION - 1-2 massive elements that FILL the top
       const skyElements = availableElements.filter(el => identifyElementRole(el) === 'sky')
       if (skyElements.length > 0) {
-        const element = skyElements[Math.floor(Math.random() * skyElements.length)]
+        const skyCount = Math.random() > 0.7 ? 2 : 1 // Usually 1, sometimes 2
+        for (let i = 0; i < skyCount; i++) {
+          const element = skyElements[Math.floor(Math.random() * skyElements.length)]
+          const placement = getFoundationalPlacement('sky')
+          
+          elements.push({
+            ...element,
+            ...placement,
+            primary: true
+          })
+        }
+        console.log(`🌌 Placed ${skyCount} MASSIVE sky foundation(s) - Z-INDEX: 1-4 (SKY LAYER)`)
+      } else {
+        // Fallback: use any element as sky if no sky elements available
+        const fallbackElement = availableElements[Math.floor(Math.random() * availableElements.length)]
         const placement = getFoundationalPlacement('sky')
-        
         elements.push({
-          ...element,
+          ...fallbackElement,
           ...placement,
           primary: true
         })
-        console.log('🌌 Placed massive sky foundation')
+        console.log('🌌 Placed fallback massive sky foundation - Z-INDEX: 1-4 (SKY LAYER)')
       }
       
-      // GROUND FOUNDATION - 1-2 massive elements
+      // GROUND FOUNDATION - 1-2 massive elements that FILL the bottom  
       const groundElements = availableElements.filter(el => identifyElementRole(el) === 'ground')
       if (groundElements.length > 0) {
-        const groundCount = Math.random() > 0.6 ? 2 : 1
+        const groundCount = Math.random() > 0.5 ? 2 : 1 // Usually 1-2
         for (let i = 0; i < groundCount; i++) {
           const element = groundElements[Math.floor(Math.random() * groundElements.length)]
           const placement = getFoundationalPlacement('ground')
@@ -171,7 +185,17 @@ export default function CollageCreator() {
             primary: true
           })
         }
-        console.log(`🏗️ Placed ${groundCount} massive ground foundation(s)`)
+        console.log(`🏗️ Placed ${groundCount} MASSIVE ground foundation(s) - Z-INDEX: 10-15 (GROUND LAYER)`)
+      } else {
+        // Fallback: use any element as ground if no ground elements available
+        const fallbackElement = availableElements[Math.floor(Math.random() * availableElements.length)]
+        const placement = getFoundationalPlacement('ground')
+        elements.push({
+          ...fallbackElement,
+          ...placement,
+          primary: true
+        })
+        console.log('🏗️ Placed fallback massive ground foundation - Z-INDEX: 10-15 (GROUND LAYER)')
       }
       
       // MIDGROUND LAYER - 2-4 medium elements
@@ -188,7 +212,7 @@ export default function CollageCreator() {
             primary: i === 0
           })
         }
-        console.log(`🎯 Placed ${midCount} midground elements`)
+        console.log(`🎯 Placed ${midCount} midground elements - Z-INDEX: 20-25 (MIDGROUND LAYER)`)
       }
       
       // FOREGROUND DETAILS - 3-6 small elements
@@ -205,7 +229,7 @@ export default function CollageCreator() {
             primary: false
           })
         }
-        console.log(`✨ Placed ${foregroundCount} foreground details`)
+        console.log(`✨ Placed ${foregroundCount} foreground details - Z-INDEX: 30-40 (FOREGROUND LAYER)`)
       }
       
       // Sort by z-index
@@ -223,6 +247,20 @@ export default function CollageCreator() {
   }
 
   const addElementToCanvas = (element: Element, x: number = 50, y: number = 50) => {
+    // Determine appropriate z-index based on element role
+    const role = identifyElementRole(element)
+    let baseZIndex: number
+    
+    if (role === 'sky') {
+      baseZIndex = 1 + Math.random() * 3 // SKY LAYER: 1-4
+    } else if (role === 'ground') {
+      baseZIndex = 10 + Math.random() * 5 // GROUND LAYER: 10-15
+    } else if (role === 'midground') {
+      baseZIndex = 20 + Math.random() * 5 // MIDGROUND LAYER: 20-25
+    } else {
+      baseZIndex = 30 + Math.random() * 10 // FOREGROUND LAYER: 30-40
+    }
+    
     const newElement: CollageElement = {
       ...element,
       x: x,
@@ -230,7 +268,7 @@ export default function CollageCreator() {
       scale: 1.0,
       rotation: 0,
       opacity: 1.0,
-      zIndex: Math.max(...collageElements.map(el => el.zIndex), 0) + 1,
+      zIndex: baseZIndex,
       primary: false
     }
     
@@ -255,18 +293,23 @@ export default function CollageCreator() {
   const handleElementMouseDown = (e: React.MouseEvent, element: CollageElement) => {
     e.stopPropagation()
     
-    if (e.detail === 1) {
-      // Single click - start drag
-      setDraggedCanvasElement(element)
-      setSelectedElementId(`${element.id}-${element.x}-${element.y}`)
-      
-      const rect = canvasRef.current?.getBoundingClientRect()
-      if (rect) {
-        setDragOffset({
-          x: e.clientX - rect.left - (element.x / 100) * rect.width,
-          y: e.clientY - rect.top - (element.y / 100) * rect.height
-        })
-      }
+    // Right click or Ctrl+click to delete
+    if (e.button === 2 || e.ctrlKey) {
+      e.preventDefault()
+      deleteElement(element)
+      return
+    }
+    
+    // Left click to select and start drag
+    setSelectedElementId(`${element.id}-${element.x}-${element.y}`)
+    setDraggedCanvasElement(element)
+    
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (rect) {
+      setDragOffset({
+        x: e.clientX - rect.left - (element.x / 100) * rect.width,
+        y: e.clientY - rect.top - (element.y / 100) * rect.height
+      })
     }
   }
 
@@ -453,22 +496,59 @@ export default function CollageCreator() {
           </div>
 
           {/* Element Editor */}
-          {selectedElement && (
-            <div className="border-t border-gray-800 pt-4">
+          {selectedElement ? (
+            <div className="border-t border-yellow-500 bg-yellow-900/20 rounded pt-4 px-3">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-bold tracking-wide text-yellow-400">ELEMENT EDITOR</h3>
+                <div>
+                  <h3 className="font-bold tracking-wide text-yellow-400">🎯 EDITING: {selectedElement.name}</h3>
+                  <div className="text-xs text-gray-400">
+                    {identifyElementRole(selectedElement).toUpperCase()} LAYER • Z-INDEX: {selectedElement.zIndex}
+                  </div>
+                </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => updateElement(selectedElement, { zIndex: Math.max(...collageElements.map(el => el.zIndex)) + 1 })}
+                    onClick={() => {
+                      const role = identifyElementRole(selectedElement)
+                      let maxZIndex: number
+                      
+                      // Respect layer boundaries - elements can't cross into higher layers
+                      if (role === 'sky') {
+                        maxZIndex = Math.min(4, Math.max(...collageElements.filter(el => identifyElementRole(el) === 'sky').map(el => el.zIndex)) + 1)
+                      } else if (role === 'ground') {
+                        maxZIndex = Math.min(15, Math.max(...collageElements.filter(el => identifyElementRole(el) === 'ground').map(el => el.zIndex)) + 1)
+                      } else if (role === 'midground') {
+                        maxZIndex = Math.min(25, Math.max(...collageElements.filter(el => identifyElementRole(el) === 'midground').map(el => el.zIndex)) + 1)
+                      } else {
+                        maxZIndex = Math.max(...collageElements.filter(el => identifyElementRole(el) === 'foreground').map(el => el.zIndex)) + 1
+                      }
+                      
+                      updateElement(selectedElement, { zIndex: maxZIndex })
+                    }}
                     className="bg-blue-600 hover:bg-blue-700 px-2 py-1 text-xs font-semibold"
-                    title="Bring to front"
+                    title="Bring to front (within layer)"
                   >
                     FRONT
                   </button>
                   <button
-                    onClick={() => updateElement(selectedElement, { zIndex: Math.min(...collageElements.map(el => el.zIndex)) - 1 })}
+                    onClick={() => {
+                      const role = identifyElementRole(selectedElement)
+                      let minZIndex: number
+                      
+                      // Respect layer boundaries - elements can't cross into lower layers
+                      if (role === 'sky') {
+                        minZIndex = Math.max(1, Math.min(...collageElements.filter(el => identifyElementRole(el) === 'sky').map(el => el.zIndex)) - 1)
+                      } else if (role === 'ground') {
+                        minZIndex = Math.max(10, Math.min(...collageElements.filter(el => identifyElementRole(el) === 'ground').map(el => el.zIndex)) - 1)
+                      } else if (role === 'midground') {
+                        minZIndex = Math.max(20, Math.min(...collageElements.filter(el => identifyElementRole(el) === 'midground').map(el => el.zIndex)) - 1)
+                      } else {
+                        minZIndex = Math.max(30, Math.min(...collageElements.filter(el => identifyElementRole(el) === 'foreground').map(el => el.zIndex)) - 1)
+                      }
+                      
+                      updateElement(selectedElement, { zIndex: minZIndex })
+                    }}
                     className="bg-blue-600 hover:bg-blue-700 px-2 py-1 text-xs font-semibold"
-                    title="Send to back"
+                    title="Send to back (within layer)"
                   >
                     BACK
                   </button>
@@ -555,11 +635,43 @@ export default function CollageCreator() {
                 </button>
                 
                 <div className="text-xs text-gray-500 text-center">
-                  Drag element to move • Del to delete • Esc to deselect
+                  Click to select • Drag to move • Double-click to DELETE • Right-click to DELETE
                 </div>
               </div>
             </div>
-          )}
+          ) : collageElements.length > 0 ? (
+            <div className="border-t border-gray-800 pt-4">
+              <div className="bg-blue-900/30 border border-blue-600 rounded p-3 text-center">
+                <h3 className="font-bold text-blue-400 mb-2">🎯 ELEMENT TOOLS</h3>
+                <div className="text-xs text-gray-300 space-y-1">
+                  <p><span className="text-yellow-400">CLICK</span> any element to select & edit</p>
+                  <p><span className="text-red-400">DOUBLE-CLICK</span> any element to delete</p>
+                  <p><span className="text-green-400">DRAG</span> selected elements to move</p>
+                </div>
+                <div className="mt-3 pt-2 border-t border-blue-600">
+                  <h4 className="font-bold text-blue-300 mb-1">LAYER SYSTEM:</h4>
+                  <div className="flex justify-center gap-3 text-xs">
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-blue-500 rounded"></div>
+                      <span>SKY</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-green-500 rounded"></div>
+                      <span>GROUND</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-yellow-500 rounded"></div>
+                      <span>MID</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-red-500 rounded"></div>
+                      <span>FORE</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
           
           {/* Action Buttons */}
           <div className="grid grid-cols-2 gap-4">
@@ -648,7 +760,8 @@ export default function CollageCreator() {
           <div className="text-center space-y-1">
             <p className="font-bold text-gray-400">{availableElements.length.toLocaleString()} ELEMENTS • {collageElements.length} ON CANVAS</p>
             <p className="text-gray-600">Generate inspiration, then create your masterpiece</p>
-            <p className="text-gray-700">💡 Drag elements on canvas to move • Click to select & edit</p>
+            <p className="text-yellow-400 font-semibold">💡 CLICK elements to select & edit • DOUBLE-CLICK to delete</p>
+            <p className="text-gray-700">Drag from library or drag elements on canvas to move</p>
           </div>
         </div>
       </div>
@@ -707,18 +820,26 @@ export default function CollageCreator() {
                   <div
                     key={elementId}
                     className={`collage-element absolute select-none transition-all duration-200 ${
-                      isSelected ? 'ring-2 ring-yellow-400 ring-offset-2 ring-offset-white' : 'hover:ring-2 hover:ring-blue-400 hover:ring-offset-1 hover:ring-offset-white'
-                    } ${draggedCanvasElement === element ? 'opacity-80 scale-105 z-50' : ''}`}
+                      isSelected ? 'ring-4 ring-yellow-400 ring-offset-4 ring-offset-white shadow-2xl' : 'hover:ring-2 hover:ring-blue-400 hover:ring-offset-2 hover:ring-offset-white'
+                    } ${draggedCanvasElement === element ? 'opacity-90 scale-110 z-50' : ''}`}
                     style={{
                       left: `${element.x}%`,
                       top: `${element.y}%`,
                       transform: `rotate(${element.rotation}deg) scale(${element.scale})`,
-                      opacity: draggedCanvasElement === element ? 0.8 : element.opacity,
+                      opacity: draggedCanvasElement === element ? 0.9 : element.opacity,
                       zIndex: draggedCanvasElement === element ? 999 : element.zIndex,
                       transformOrigin: 'center',
-                      cursor: draggedCanvasElement === element ? 'grabbing' : 'grab'
+                      cursor: isSelected ? 'grab' : 'pointer'
                     }}
                     onMouseDown={(e) => handleElementMouseDown(e, element)}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation()
+                      deleteElement(element)
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      deleteElement(element)
+                    }}
                   >
                     <img
                       src={element.file_url}
@@ -735,6 +856,16 @@ export default function CollageCreator() {
                         <div className="w-2 h-2 bg-white rounded-full"></div>
                       </div>
                     )}
+                    {/* Layer indicator */}
+                    <div className="absolute -top-1 -left-1 text-xs font-bold px-1 rounded shadow-lg"
+                         style={{
+                           backgroundColor: identifyElementRole(element) === 'sky' ? '#3B82F6' : 
+                                          identifyElementRole(element) === 'ground' ? '#10B981' :
+                                          identifyElementRole(element) === 'midground' ? '#F59E0B' : '#EF4444',
+                           color: 'white'
+                         }}>
+                      {identifyElementRole(element).charAt(0).toUpperCase()}
+                    </div>
                   </div>
                 )
               })}
