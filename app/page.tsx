@@ -312,12 +312,23 @@ export default function CollageCreator() {
   }
 
   const updateElement = (elementToUpdate: CollageElement, updates: Partial<CollageElement>) => {
-    // Direct update without requestAnimationFrame for immediate response
+    // Direct update for immediate response (sliders, etc.)
     setCollageElements(prev => prev.map(el => 
       (el.id === elementToUpdate.id && el.x === elementToUpdate.x && el.y === elementToUpdate.y) 
         ? { ...el, ...updates }
         : el
     ))
+  }
+
+  const updateElementSmooth = (elementToUpdate: CollageElement, updates: Partial<CollageElement>) => {
+    // Smooth update with requestAnimationFrame for dragging
+    requestAnimationFrame(() => {
+      setCollageElements(prev => prev.map(el => 
+        (el.id === elementToUpdate.id && el.x === elementToUpdate.x && el.y === elementToUpdate.y) 
+          ? { ...el, ...updates }
+          : el
+      ))
+    })
   }
 
   const handleElementClick = (e: React.MouseEvent, element: CollageElement) => {
@@ -357,17 +368,26 @@ export default function CollageCreator() {
   const handleCanvasMouseMove = (e: React.MouseEvent) => {
     if (draggedCanvasElement && canvasRef.current) {
       const rect = canvasRef.current.getBoundingClientRect()
-      const newX = Math.max(0, Math.min(95, ((e.clientX - rect.left - dragOffset.x) / rect.width) * 100))
-      const newY = Math.max(0, Math.min(95, ((e.clientY - rect.top - dragOffset.y) / rect.height) * 100))
       
-      updateElement(draggedCanvasElement, { x: newX, y: newY })
-      setDraggedCanvasElement({ ...draggedCanvasElement, x: newX, y: newY })
+      // Allow elements to go WAY off canvas (-100% to 200% range)
+      const newX = ((e.clientX - rect.left - dragOffset.x) / rect.width) * 100
+      const newY = ((e.clientY - rect.top - dragOffset.y) / rect.height) * 100
+      
+      // Constrain to reasonable bounds but allow off-canvas positioning
+      const constrainedX = Math.max(-100, Math.min(200, newX))
+      const constrainedY = Math.max(-100, Math.min(200, newY))
+      
+      // Use smooth update for buttery dragging
+      updateElementSmooth(draggedCanvasElement, { x: constrainedX, y: constrainedY })
+      setDraggedCanvasElement({ ...draggedCanvasElement, x: constrainedX, y: constrainedY })
     } else if (isDragging && zoom > 1) {
-      // Pan canvas when zoomed
-      setPan(prev => ({
-        x: prev.x + e.movementX,
-        y: prev.y + e.movementY
-      }))
+      // Pan canvas when zoomed - also buttery smooth
+      requestAnimationFrame(() => {
+        setPan(prev => ({
+          x: prev.x + e.movementX,
+          y: prev.y + e.movementY
+        }))
+      })
     }
   }
 
@@ -801,8 +821,8 @@ export default function CollageCreator() {
           <div className="text-center space-y-1">
             <p className="font-bold text-gray-400">{availableElements.length.toLocaleString()} ELEMENTS • {collageElements.length} ON CANVAS</p>
             <p className="text-gray-600">Generate inspiration, then create your masterpiece</p>
-            <p className="text-yellow-400 font-semibold">💡 SINGLE-CLICK elements to select • CLICK OUTSIDE to deselect</p>
-            <p className="text-gray-700">DOUBLE-CLICK to delete • Optimized for smooth performance</p>
+            <p className="text-yellow-400 font-semibold">💡 SINGLE-CLICK to select • DRAG anywhere (even off-canvas!)</p>
+            <p className="text-gray-700">DOUBLE-CLICK to delete • Elements can flow in/out from any edge</p>
           </div>
         </div>
       </div>
@@ -821,7 +841,7 @@ export default function CollageCreator() {
               width: '100%',
               maxWidth: '600px',
               maxHeight: 'calc(100vh - 120px)',
-              overflow: 'hidden',
+              overflow: 'visible', // Allow elements to extend beyond container
               cursor: draggedCanvasElement ? 'grabbing' : zoom > 1 ? 'grab' : 'default'
             }}
             onMouseDown={(e) => {
@@ -853,7 +873,8 @@ export default function CollageCreator() {
                 transition: isDragging ? 'none' : 'transform 0.2s ease-out',
                 willChange: isDragging || zoom !== 1 ? 'transform' : 'auto',
                 backfaceVisibility: 'hidden',
-                perspective: 1000
+                perspective: 1000,
+                overflow: 'visible' // Allow elements to extend beyond canvas bounds
               }}
             >
               {collageElements.map((element, index) => {
