@@ -51,9 +51,12 @@ export default function CollageCreator() {
     })
   }, [selectedElementId, selectedElement, collageElements.length])
 
-  // Click outside canvas to deselect - with proper timing
+  // IMPROVED: Click outside canvas to deselect - but NOT during dragging
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      // DON'T deselect during drag operations
+      if (draggedCanvasElement) return
+      
       // Small delay to avoid interfering with element clicks
       setTimeout(() => {
         if (canvasRef.current && !canvasRef.current.contains(e.target as Node)) {
@@ -69,7 +72,7 @@ export default function CollageCreator() {
 
     document.addEventListener('click', handleClickOutside)
     return () => document.removeEventListener('click', handleClickOutside)
-  }, [])
+  }, [draggedCanvasElement]) // Added draggedCanvasElement as dependency
 
   useEffect(() => {
     loadElements()
@@ -101,6 +104,196 @@ export default function CollageCreator() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedElement])
+
+  // PIXEL-PERFECT: Check if click coordinates hit actual image content
+  const checkPixelHit = async (imgElement: HTMLImageElement, clickX: number, clickY: number, displayWidth: number, displayHeight: number): Promise<boolean> => {
+    return new Promise((resolve) => {
+      // Create hidden canvas for pixel detection
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        resolve(true) // Fallback to allowing click if canvas not supported
+        return
+      }
+      
+      // Set canvas size to match displayed image
+      canvas.width = displayWidth
+      canvas.height = displayHeight
+      
+      // Create a new image to avoid CORS issues
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      
+      img.onload = () => {
+        try {
+          // Draw image to canvas
+          ctx.drawImage(img, 0, 0, displayWidth, displayHeight)
+          
+          // Get pixel data at click coordinates
+          const imageData = ctx.getImageData(Math.max(0, Math.min(clickX, displayWidth-1)), Math.max(0, Math.min(clickY, displayHeight-1)), 1, 1)
+          const pixelData = imageData.data
+          
+          // Check alpha channel (transparency)
+          const alpha = pixelData[3]
+          
+          // Consider pixel "hit" if alpha > threshold (not fully transparent)
+          const alphaThreshold = 10 // Adjust this value for sensitivity
+          const isHit = alpha > alphaThreshold
+          
+          console.log(`🔍 Pixel check at (${Math.round(clickX)}, ${Math.round(clickY)}): alpha=${alpha}, hit=${isHit}`)
+          
+          resolve(isHit)
+        } catch (error) {
+          console.log('🚫 Canvas pixel detection failed, allowing click')
+          resolve(true) // Fallback to allowing click if detection fails
+        }
+      }
+      
+      img.onerror = () => {
+        console.log('🚫 Image load failed for pixel detection, allowing click')
+        resolve(true) // Fallback to allowing click if image fails to load
+      }
+      
+      // Load the same image source
+      img.src = imgElement.src
+    })
+  }
+
+  // PIXEL-PERFECT: Enhanced element click handler with contour detection (SELECTION ONLY)
+  const handleElementClick = async (e: React.MouseEvent, element: CollageElement) => {
+    e.stopPropagation()
+    e.preventDefault()
+    
+    // Get the image element
+    const imgElement = e.currentTarget.querySelector('img') as HTMLImageElement
+    if (!imgElement) return
+    
+    // Calculate click position relative to the image
+    const rect = imgElement.getBoundingClientRect()
+    const clickX = e.clientX - rect.left
+    const clickY = e.clientY - rect.top
+    
+    // CONTOUR DETECTION: Check if click is on actual image content
+    const isOnImageContent = await checkPixelHit(imgElement, clickX, clickY, rect.width, rect.height)
+    
+    if (!isOnImageContent) {
+      console.log('🚫 Click missed image content - ignoring')
+      return // Don't select if clicking on transparent/empty area
+    }
+    
+    console.log('✅ Click hit image content - selecting')
+    
+    // Right click to delete (desktop only)
+    if (e.button === 2 && !isMobile) {
+      console.log('🗑️ Right-click delete:', element.name)
+      deleteElement(element)
+      return
+    }
+    
+    // Left click to select AND bring to ABSOLUTE FRONT
+    const elementId = `${element.id}-${element.x}-${element.y}`
+    setSelectedElementId(elementId)
+    
+    // DOM ORDERING APPROACH: Get max z-index and set element higher
+    const allZIndexes = collageElements.map(el => el.zIndex)
+    const maxZIndex = Math.max(...allZIndexes, 0)
+    const newZIndex = maxZIndex + 1000
+    
+    console.log(`🚀 DOM REORDER: ${element.name} z-index ${element.zIndex} → ${newZIndex} (will be last in DOM = on top)`)
+    
+    // Update z-index - DOM will be automatically reordered by sort()
+    setCollageElements(prev => {
+      return prev.map(el => {
+        if (el.id === element.id && el.x === element.x && el.y === element.y) {
+          return { ...el, zIndex: newZIndex }
+        }
+        return el
+      })
+    })
+  }
+
+  // SIMPLIFIED: Mouse down handler - NO pixel detection to allow free dragging
+  const handleElementMouseDown = (e: React.MouseEvent, element: CollageElement) => {
+    e.stopPropagation()
+    e.preventDefault()
+    
+    // ALWAYS allow drag start on left click - no pixel detection interference
+    if (e.button === 0) {
+      console.log('✅ Starting drag for:', element.name)
+      setDraggedCanvasElement(element)
+      
+      const canvasRect = canvasRef.current?.getBoundingClientRect()
+      if (canvasRect) {
+        setDragOffset({
+          x: e.clientX - canvasRect.left - (element.x / 100) * canvasRect.width,
+          y: e.clientY - canvasRect.top - (element.y / 100) * canvasRect.height
+        })
+      }
+    }
+  }
+
+  // MOBILE: Simplified touch handler - NO pixel detection for drag start
+  const handleElementTouchStart = async (e: React.TouchEvent, element: CollageElement) => {
+    e.stopPropagation()
+    const touch = e.touches[0]
+    
+    // For mobile, we'll do pixel detection for selection but allow drag regardless
+    let shouldSelect = true
+    
+    // Get the image element for selection check
+    const imgElement = e.currentTarget.querySelector('img') as HTMLImageElement
+    if (imgElement) {
+      // Calculate touch position relative to the image
+      const rect = imgElement.getBoundingClientRect()
+      const touchX = touch.clientX - rect.left
+      const touchY = touch.clientY - rect.top
+      
+      // CONTOUR DETECTION: Check if touch is on actual image content
+      const isOnImageContent = await checkPixelHit(imgElement, touchX, touchY, rect.width, rect.height)
+      
+      if (!isOnImageContent) {
+        console.log('🚫 Touch missed image content - ignoring selection')
+        shouldSelect = false
+      } else {
+        console.log('✅ Touch hit image content - selecting')
+      }
+    }
+    
+    if (shouldSelect) {
+      // Select element and bring to front
+      const elementId = `${element.id}-${element.x}-${element.y}`
+      setSelectedElementId(elementId)
+      
+      // DOM ORDERING: Get max z-index and set element higher
+      const allZIndexes = collageElements.map(el => el.zIndex)
+      const maxZIndex = Math.max(...allZIndexes, 0)
+      const newZIndex = maxZIndex + 1000
+      
+      console.log(`🚀 MOBILE DOM REORDER: ${element.name} z-index ${element.zIndex} → ${newZIndex}`)
+      
+      // Update z-index
+      setCollageElements(prev => {
+        return prev.map(el => {
+          if (el.id === element.id && el.x === element.x && el.y === element.y) {
+            return { ...el, zIndex: newZIndex }
+          }
+          return el
+        })
+      })
+    }
+    
+    // ALWAYS allow drag start regardless of pixel detection
+    console.log('✅ Starting mobile drag for:', element.name)
+    setDraggedCanvasElement(element)
+    
+    const canvasRect = canvasRef.current?.getBoundingClientRect()
+    if (canvasRect) {
+      setDragOffset({
+        x: touch.clientX - canvasRect.left - (element.x / 100) * canvasRect.width,
+        y: touch.clientY - canvasRect.top - (element.y / 100) * canvasRect.height
+      })
+    }
+  }
 
   // TELEPORTATION: Instant manifesting image component - no loading states, no delays
   const TeleportImage = ({ element, onClick, index }: { element: Element, onClick: () => void, index: number }) => {
@@ -505,70 +698,17 @@ export default function CollageCreator() {
     })
   }
 
-  const handleElementClick = (e: React.MouseEvent, element: CollageElement) => {
-    // ENHANCED: Stop all event propagation to prevent interference
-    e.stopPropagation()
-    e.preventDefault()
-    
-    // Right click to delete (desktop only)
-    if (e.button === 2 && !isMobile) {
-      console.log('🗑️ Right-click delete:', element.name)
-      deleteElement(element)
-      return
-    }
-    
-    // Left click to select AND bring to ABSOLUTE FRONT
-    const elementId = `${element.id}-${element.x}-${element.y}`
-    setSelectedElementId(elementId)
-    
-    // DOM ORDERING APPROACH: Get max z-index and set element higher
-    const allZIndexes = collageElements.map(el => el.zIndex)
-    const maxZIndex = Math.max(...allZIndexes, 0)
-    const newZIndex = maxZIndex + 1000
-    
-    console.log(`🚀 DOM REORDER: ${element.name} z-index ${element.zIndex} → ${newZIndex} (will be last in DOM = on top)`)
-    
-    // Update z-index - DOM will be automatically reordered by sort()
-    setCollageElements(prev => {
-      return prev.map(el => {
-        if (el.id === element.id && el.x === element.x && el.y === element.y) {
-          return { ...el, zIndex: newZIndex }
-        }
-        return el
-      })
-    })
-  }
-
-  const handleElementMouseDown = (e: React.MouseEvent, element: CollageElement) => {
-    // ENHANCED: Stop all event interference
-    e.stopPropagation()
-    e.preventDefault()
-    
-    // Only handle dragging, not selection (selection handled by onClick)
-    if (e.button === 0) { // Left click only
-      setDraggedCanvasElement(element)
-      
-      const rect = canvasRef.current?.getBoundingClientRect()
-      if (rect) {
-        setDragOffset({
-          x: e.clientX - rect.left - (element.x / 100) * rect.width,
-          y: e.clientY - rect.top - (element.y / 100) * rect.height
-        })
-      }
-    }
-  }
-
   const handleCanvasMouseMove = (e: React.MouseEvent) => {
     if (draggedCanvasElement && canvasRef.current) {
       const rect = canvasRef.current.getBoundingClientRect()
       
-      // Allow elements to go WAY off canvas (-100% to 200% range)
+      // LIBERAL: Allow elements to go well beyond canvas bounds
       const newX = ((e.clientX - rect.left - dragOffset.x) / rect.width) * 100
       const newY = ((e.clientY - rect.top - dragOffset.y) / rect.height) * 100
       
-      // Constrain to reasonable bounds but allow off-canvas positioning
-      const constrainedX = Math.max(-100, Math.min(200, newX))
-      const constrainedY = Math.max(-100, Math.min(200, newY))
+      // VERY GENEROUS constraints - allow way off canvas positioning
+      const constrainedX = Math.max(-200, Math.min(300, newX))
+      const constrainedY = Math.max(-200, Math.min(300, newY))
       
       // Use smooth update for buttery dragging
       updateElementSmooth(draggedCanvasElement, { x: constrainedX, y: constrainedY })
@@ -666,7 +806,7 @@ export default function CollageCreator() {
                 <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-green-500 to-blue-500 bg-clip-text text-transparent">
                   COLLAGE CREATOR
                 </h1>
-                <div className="text-xs text-gray-400">Mobile • {availableElements.length} elements</div>
+                <div className="text-xs text-gray-400">Mobile • {availableElements.length} elements • SMOOTH DRAG</div>
               </div>
               {selectedElement && (
                 <button
@@ -753,7 +893,7 @@ export default function CollageCreator() {
             
             <div className="mt-3 text-center">
               <div className="text-xs text-gray-400">
-                {collageElements.length} elements • Tap to select • Drag to move
+                {collageElements.length} elements • Touch image to select • Drag freely anywhere
               </div>
             </div>
           </div>
@@ -777,8 +917,9 @@ export default function CollageCreator() {
                     const rect = canvasRef.current.getBoundingClientRect()
                     const newX = ((touch.clientX - rect.left - dragOffset.x) / rect.width) * 100
                     const newY = ((touch.clientY - rect.top - dragOffset.y) / rect.height) * 100
-                    const constrainedX = Math.max(-100, Math.min(200, newX))
-                    const constrainedY = Math.max(-100, Math.min(200, newY))
+                    // GENEROUS mobile constraints
+                    const constrainedX = Math.max(-200, Math.min(300, newX))
+                    const constrainedY = Math.max(-200, Math.min(300, newY))
                     updateElementSmooth(draggedCanvasElement, { x: constrainedX, y: constrainedY })
                     setDraggedCanvasElement({ ...draggedCanvasElement, x: constrainedX, y: constrainedY })
                   }
@@ -800,7 +941,7 @@ export default function CollageCreator() {
                     overflow: 'hidden'
                   }}
                 >
-                  {/* DOM REORDERING: Sort elements by z-index for mobile */}
+                  {/* CLEAN: DOM reordering for mobile - NO debug tags */}
                   {collageElements
                     .slice() // Create copy to avoid mutating original array
                     .sort((a, b) => a.zIndex - b.zIndex) // Sort by z-index - lower first, higher last (on top)
@@ -825,20 +966,7 @@ export default function CollageCreator() {
                           willChange: draggedCanvasElement === element ? 'transform' : 'auto',
                           backfaceVisibility: 'hidden'
                         }}
-                        onTouchStart={(e) => {
-                          e.stopPropagation()
-                          const touch = e.touches[0]
-                          setSelectedElementId(elementId)
-                          setDraggedCanvasElement(element)
-                          
-                          const rect = canvasRef.current?.getBoundingClientRect()
-                          if (rect) {
-                            setDragOffset({
-                              x: touch.clientX - rect.left - (element.x / 100) * rect.width,
-                              y: touch.clientY - rect.top - (element.y / 100) * rect.height
-                            })
-                          }
-                        }}
+                        onTouchStart={(e) => handleElementTouchStart(e, element)}
                       >
                         <img
                           src={element.file_url}
@@ -864,10 +992,7 @@ export default function CollageCreator() {
                             <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
                           </div>
                         )}
-                        {/* Z-index debug indicator */}
-                        <div className="absolute top-0 left-0 bg-red-600 text-white text-xs px-1 py-0.5 pointer-events-none font-bold">
-                          z:{Math.round(element.zIndex)}
-                        </div>
+                        {/* REMOVED: Z-index debug indicator for clean interface */}
                       </div>
                     )
                   })}
@@ -945,7 +1070,7 @@ export default function CollageCreator() {
                   )}
                 </button>
                 <p className="text-xs text-gray-400 mt-2 text-center">
-                  Using {availableElements.length} loaded elements • TELEPORTATION-speed switching
+                  Using {availableElements.length} loaded elements • SMOOTH DRAGGING ENABLED
                 </p>
               </div>
 
@@ -994,7 +1119,7 @@ export default function CollageCreator() {
                   {/* PERFORMANCE TIP */}
                   {selectedCategory !== 'all' && filteredElements.length > 0 && (
                     <div className="text-xs text-green-400 mb-2 p-1 bg-green-900/20 border border-green-500/30 rounded">
-                      ⚡ {filteredElements.length} elements • TELEPORTATION MODE: Instant manifestation
+                      ⚡ {filteredElements.length} elements • DRAG anywhere freely on canvas
                     </div>
                   )}
                   
@@ -1053,7 +1178,7 @@ export default function CollageCreator() {
                     <div>
                       <h3 className="font-bold tracking-wide text-yellow-400 text-sm">🎯 {selectedElement.name}</h3>
                       <div className="text-xs text-gray-400">
-                        {identifyElementRole(selectedElement).toUpperCase()} • Z:{selectedElement.zIndex}
+                        {identifyElementRole(selectedElement).toUpperCase()}
                       </div>
                     </div>
                     <div className="flex gap-1">
@@ -1141,10 +1266,11 @@ export default function CollageCreator() {
               ) : collageElements.length > 0 ? (
                 <div className="border-t border-gray-800 pt-3">
                   <div className="bg-blue-900/30 border border-blue-600 rounded p-3 text-center">
-                    <h3 className="font-bold text-blue-400 mb-2 text-sm">🎯 ELEMENT TOOLS</h3>
+                    <h3 className="font-bold text-blue-400 mb-2 text-sm">🎯 SMOOTH DRAG TOOLS</h3>
                     <div className="text-xs text-gray-300 space-y-1">
-                      <p><span className="text-yellow-400">CLICK</span> to select • <span className="text-red-400">RIGHT-CLICK</span> to delete</p>
-                      <p><span className="text-green-400">DRAG</span> to move • <span className="text-blue-400">DEL</span> key to remove</p>
+                      <p><span className="text-yellow-400">CLICK IMAGE</span> to select • <span className="text-red-400">RIGHT-CLICK</span> to delete</p>
+                      <p><span className="text-green-400">DRAG ANYWHERE</span> to move freely • <span className="text-blue-400">DEL</span> key to remove</p>
+                      <p className="text-cyan-400">🚀 Drag to any position - no boundaries!</p>
                     </div>
                   </div>
                 </div>
@@ -1236,11 +1362,11 @@ export default function CollageCreator() {
             <div className="text-xs text-gray-500 border-t border-gray-800 pt-4">
               <div className="text-center space-y-1">
                 <p className="font-bold text-gray-400">
-                  ⚡ TELEPORTATION-OPTIMIZED: {availableElements.length.toLocaleString()} ELEMENTS • {collageElements.length} ON CANVAS
+                  🚀 SMOOTH DRAGGING: {availableElements.length.toLocaleString()} ELEMENTS • {collageElements.length} ON CANVAS
                 </p>
-                <p className="text-gray-600">Category switching at teleportation speed - elements manifest instantly</p>
-                <p className="text-yellow-400 font-semibold">💡 CLICK elements to select • Right-click to delete</p>
-                <p className="text-green-400">🚀 Teleportation mode: Zero loading states, instant manifestation</p>
+                <p className="text-gray-600">Drag elements anywhere freely - no more movement restrictions!</p>
+                <p className="text-yellow-400 font-semibold">💡 CLICK image content to select • Drag anywhere to move</p>
+                <p className="text-green-400">🎯 Pixel-perfect selection + unlimited drag freedom</p>
               </div>
             </div>
           </div>
@@ -1248,7 +1374,7 @@ export default function CollageCreator() {
           {/* Right Panel - Interactive Canvas */}
           <div className="flex-1 bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden min-h-96 lg:min-h-screen">
             <div className="absolute top-4 right-4 bg-black text-white px-4 py-2 text-xs font-bold tracking-wide z-10 rounded">
-              CREATION CANVAS • 3:4 {zoom !== 1 && `• ${Math.round(zoom * 100)}%`}
+              SMOOTH DRAG CANVAS • 3:4 {zoom !== 1 && `• ${Math.round(zoom * 100)}%`}
             </div>
             
             <div className="w-full h-full flex items-center justify-center p-4">
@@ -1296,7 +1422,7 @@ export default function CollageCreator() {
                     position: 'relative'
                   }}
                 >
-                  {/* FIXED: Add DOM reordering to desktop version (was missing!) */}
+                  {/* CLEAN: DOM reordering with smooth dragging - NO debug tags */}
                   {collageElements
                     .slice() // Create copy to avoid mutating original array
                     .sort((a, b) => a.zIndex - b.zIndex) // Sort by z-index - higher z-index = later in DOM = on top
@@ -1315,23 +1441,14 @@ export default function CollageCreator() {
                           top: `${element.y}%`,
                           transform: `translate3d(0, 0, 0) rotate(${element.rotation}deg) scale(${element.scale})`,
                           opacity: draggedCanvasElement === element ? 0.9 : element.opacity,
-                          // REMOVED: z-index property - relying on DOM order instead
                           transformOrigin: 'center',
                           cursor: draggedCanvasElement === element ? 'grabbing' : (isSelected ? 'grab' : 'pointer'),
                           pointerEvents: 'auto',
                           willChange: draggedCanvasElement === element ? 'transform' : 'auto',
                           backfaceVisibility: 'hidden',
                         }}
-                        onMouseDown={(e) => {
-                          e.stopPropagation()
-                          e.preventDefault()
-                          handleElementMouseDown(e, element)
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          e.preventDefault()
-                          handleElementClick(e, element)
-                        }}
+                        onMouseDown={(e) => handleElementMouseDown(e, element)}
+                        onClick={(e) => handleElementClick(e, element)}
                         onContextMenu={(e) => {
                           e.preventDefault()
                           e.stopPropagation()
@@ -1377,10 +1494,7 @@ export default function CollageCreator() {
                             <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
                           </div>
                         )}
-                        {/* Z-index debug indicator */}
-                        <div className="absolute top-0 left-0 bg-red-600 text-white text-xs px-1 py-0.5 pointer-events-none font-bold">
-                          z:{Math.round(element.zIndex)}
-                        </div>
+                        {/* REMOVED: Z-index debug indicator - clean interface! */}
                       </div>
                     )
                   })}
@@ -1393,7 +1507,7 @@ export default function CollageCreator() {
                         </div>
                         <p className="text-xl lg:text-2xl mb-3 font-light">Ready to create?</p>
                         <p className="text-base lg:text-lg text-gray-500 mb-4">Generate inspiration to get started</p>
-                        <p className="text-sm text-blue-400">⚡ Ultra-fast loading with smart optimization</p>
+                        <p className="text-sm text-blue-400">🚀 Now with smooth unlimited dragging!</p>
                       </div>
                     </div>
                   )}
