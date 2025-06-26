@@ -15,6 +15,7 @@ export default function CollageCreator() {
   const [availableElements, setAvailableElements] = useState<Element[]>([])
   const [categories, setCategories] = useState<string[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [inspirationMode, setInspirationMode] = useState<'minimal' | 'mid' | 'high'>('mid')
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
@@ -227,10 +228,16 @@ export default function CollageCreator() {
         console.log('🏗️ Placed fallback massive ground foundation - Z-INDEX: 10-15 (GROUND LAYER)')
       }
       
-      // MIDGROUND LAYER - 2-4 medium elements
+      // MIDGROUND LAYER - varies by mode
       const midgroundElements = availableElements.filter(el => identifyElementRole(el) === 'midground')
-      if (midgroundElements.length > 0) {
-        const midCount = Math.floor(Math.random() * 3) + 2 // 2-4 elements
+      if (midgroundElements.length > 0 && (inspirationMode === 'mid' || inspirationMode === 'high')) {
+        let midCount: number
+        if (inspirationMode === 'mid') {
+          midCount = Math.floor(Math.random() * 2) + 1 // 1-2 elements for mid mode
+        } else {
+          midCount = Math.floor(Math.random() * 3) + 2 // 2-4 elements for high mode
+        }
+        
         for (let i = 0; i < midCount; i++) {
           const element = midgroundElements[Math.floor(Math.random() * midgroundElements.length)]
           const placement = getFoundationalPlacement('midground')
@@ -244,10 +251,16 @@ export default function CollageCreator() {
         console.log(`🎯 Placed ${midCount} midground elements - Z-INDEX: 20-25 (MIDGROUND LAYER)`)
       }
       
-      // FOREGROUND DETAILS - 3-6 small elements
+      // FOREGROUND DETAILS - varies by mode
       const foregroundElements = availableElements.filter(el => identifyElementRole(el) === 'foreground')
-      if (foregroundElements.length > 0) {
-        const foregroundCount = Math.floor(Math.random() * 4) + 3 // 3-6 elements
+      if (foregroundElements.length > 0 && (inspirationMode === 'mid' || inspirationMode === 'high')) {
+        let foregroundCount: number
+        if (inspirationMode === 'mid') {
+          foregroundCount = Math.floor(Math.random() * 3) + 1 // 1-3 elements for mid mode
+        } else {
+          foregroundCount = Math.floor(Math.random() * 4) + 3 // 3-6 elements for high mode
+        }
+        
         for (let i = 0; i < foregroundCount; i++) {
           const element = foregroundElements[Math.floor(Math.random() * foregroundElements.length)]
           const placement = getFoundationalPlacement('foreground')
@@ -264,7 +277,7 @@ export default function CollageCreator() {
       // Sort by z-index
       elements.sort((a, b) => a.zIndex - b.zIndex)
       
-      console.log(`🔥 INSPIRATION READY: ${elements.length} elements with perfect hierarchy`)
+      console.log(`🔥 ${inspirationMode.toUpperCase()} INSPIRATION READY: ${elements.length} elements with perfect hierarchy`)
       setCollageElements(elements)
       
     } catch (error) {
@@ -342,10 +355,27 @@ export default function CollageCreator() {
       return
     }
     
-    // Left click to select
+    // Left click to select AND bring to front within layer
     const elementId = `${element.id}-${element.x}-${element.y}`
     console.log('🎯 Element selected:', element.name, 'ID:', elementId)
     setSelectedElementId(elementId)
+    
+    // Automatically bring to front within its layer
+    const role = identifyElementRole(element)
+    let newZIndex: number
+    
+    if (role === 'sky') {
+      newZIndex = Math.min(4, Math.max(...collageElements.filter(el => identifyElementRole(el) === 'sky').map(el => el.zIndex)) + 1)
+    } else if (role === 'ground') {
+      newZIndex = Math.min(15, Math.max(...collageElements.filter(el => identifyElementRole(el) === 'ground').map(el => el.zIndex)) + 1)
+    } else if (role === 'midground') {
+      newZIndex = Math.min(25, Math.max(...collageElements.filter(el => identifyElementRole(el) === 'midground').map(el => el.zIndex)) + 1)
+    } else {
+      newZIndex = Math.max(...collageElements.filter(el => identifyElementRole(el) === 'foreground').map(el => el.zIndex)) + 1
+    }
+    
+    updateElement(element, { zIndex: newZIndex })
+    console.log(`🔝 Brought ${element.name} to front of ${role.toUpperCase()} layer (z-index: ${newZIndex})`)
   }
 
   const handleElementMouseDown = (e: React.MouseEvent, element: CollageElement) => {
@@ -474,6 +504,51 @@ export default function CollageCreator() {
         </div>
         
         <div className="flex-1 space-y-6">
+          {/* Inspiration Mode Selection */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles size={16} className="text-blue-400" />
+              <label className="text-sm font-bold text-gray-400 tracking-wide">
+                INSPIRATION MODE
+              </label>
+            </div>
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              <button
+                onClick={() => setInspirationMode('minimal')}
+                className={`p-3 text-xs font-bold transition-all duration-200 ${
+                  inspirationMode === 'minimal'
+                    ? 'bg-blue-600 text-white shadow-lg'
+                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                }`}
+              >
+                MINIMAL
+                <div className="text-xs font-normal opacity-75 mt-1">Foundation only</div>
+              </button>
+              <button
+                onClick={() => setInspirationMode('mid')}
+                className={`p-3 text-xs font-bold transition-all duration-200 ${
+                  inspirationMode === 'mid'
+                    ? 'bg-blue-600 text-white shadow-lg'
+                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                }`}
+              >
+                MID
+                <div className="text-xs font-normal opacity-75 mt-1">Balanced mix</div>
+              </button>
+              <button
+                onClick={() => setInspirationMode('high')}
+                className={`p-3 text-xs font-bold transition-all duration-200 ${
+                  inspirationMode === 'high'
+                    ? 'bg-blue-600 text-white shadow-lg'
+                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                }`}
+              >
+                HIGH
+                <div className="text-xs font-normal opacity-75 mt-1">Dense layers</div>
+              </button>
+            </div>
+          </div>
+
           {/* Generate Inspiration */}
           <div>
             <button
@@ -493,12 +568,14 @@ export default function CollageCreator() {
               ) : (
                 <>
                   <Sparkles size={20} />
-                  GENERATE INSPIRATION
+                  GENERATE {inspirationMode.toUpperCase()} INSPIRATION
                 </>
               )}
             </button>
             <p className="text-xs text-gray-400 mt-2 text-center">
-              Creates a foundation to build upon
+              {inspirationMode === 'minimal' && 'Sky + ground foundation only'}
+              {inspirationMode === 'mid' && 'Balanced foundation + details'}
+              {inspirationMode === 'high' && 'Dense layered composition'}
             </p>
           </div>
 
@@ -572,44 +649,44 @@ export default function CollageCreator() {
                       const role = identifyElementRole(selectedElement)
                       let maxZIndex: number
                       
-                      // Respect layer boundaries - elements can't cross into higher layers
+                      // FRONT button now brings to VERY top of layer
                       if (role === 'sky') {
-                        maxZIndex = Math.min(4, Math.max(...collageElements.filter(el => identifyElementRole(el) === 'sky').map(el => el.zIndex)) + 1)
+                        maxZIndex = 4 // Max sky layer
                       } else if (role === 'ground') {
-                        maxZIndex = Math.min(15, Math.max(...collageElements.filter(el => identifyElementRole(el) === 'ground').map(el => el.zIndex)) + 1)
+                        maxZIndex = 15 // Max ground layer
                       } else if (role === 'midground') {
-                        maxZIndex = Math.min(25, Math.max(...collageElements.filter(el => identifyElementRole(el) === 'midground').map(el => el.zIndex)) + 1)
+                        maxZIndex = 25 // Max midground layer
                       } else {
-                        maxZIndex = Math.max(...collageElements.filter(el => identifyElementRole(el) === 'foreground').map(el => el.zIndex)) + 1
+                        maxZIndex = Math.max(...collageElements.filter(el => identifyElementRole(el) === 'foreground').map(el => el.zIndex)) + 10
                       }
                       
                       updateElement(selectedElement, { zIndex: maxZIndex })
                     }}
                     className="bg-blue-600 hover:bg-blue-700 px-2 py-1 text-xs font-semibold"
-                    title="Bring to front (within layer)"
+                    title="Bring to very top of layer"
                   >
-                    FRONT
+                    TOP
                   </button>
                   <button
                     onClick={() => {
                       const role = identifyElementRole(selectedElement)
                       let minZIndex: number
                       
-                      // Respect layer boundaries - elements can't cross into lower layers
+                      // BACK button sends to very back of layer
                       if (role === 'sky') {
-                        minZIndex = Math.max(1, Math.min(...collageElements.filter(el => identifyElementRole(el) === 'sky').map(el => el.zIndex)) - 1)
+                        minZIndex = 1 // Min sky layer
                       } else if (role === 'ground') {
-                        minZIndex = Math.max(10, Math.min(...collageElements.filter(el => identifyElementRole(el) === 'ground').map(el => el.zIndex)) - 1)
+                        minZIndex = 10 // Min ground layer
                       } else if (role === 'midground') {
-                        minZIndex = Math.max(20, Math.min(...collageElements.filter(el => identifyElementRole(el) === 'midground').map(el => el.zIndex)) - 1)
+                        minZIndex = 20 // Min midground layer
                       } else {
-                        minZIndex = Math.max(30, Math.min(...collageElements.filter(el => identifyElementRole(el) === 'foreground').map(el => el.zIndex)) - 1)
+                        minZIndex = 30 // Min foreground layer
                       }
                       
                       updateElement(selectedElement, { zIndex: minZIndex })
                     }}
                     className="bg-blue-600 hover:bg-blue-700 px-2 py-1 text-xs font-semibold"
-                    title="Send to back (within layer)"
+                    title="Send to very back of layer"
                   >
                     BACK
                   </button>
@@ -705,7 +782,7 @@ export default function CollageCreator() {
               <div className="bg-blue-900/30 border border-blue-600 rounded p-3 text-center">
                 <h3 className="font-bold text-blue-400 mb-2">🎯 ELEMENT TOOLS</h3>
                 <div className="text-xs text-gray-300 space-y-1">
-                  <p><span className="text-yellow-400">CLICK</span> any element to select & edit</p>
+                  <p><span className="text-yellow-400">CLICK</span> any element to select & bring to front</p>
                   <p><span className="text-red-400">DOUBLE-CLICK</span> any element to delete</p>
                   <p><span className="text-green-400">DRAG</span> selected elements to move</p>
                 </div>
@@ -821,8 +898,8 @@ export default function CollageCreator() {
           <div className="text-center space-y-1">
             <p className="font-bold text-gray-400">{availableElements.length.toLocaleString()} ELEMENTS • {collageElements.length} ON CANVAS</p>
             <p className="text-gray-600">Generate inspiration, then create your masterpiece</p>
-            <p className="text-yellow-400 font-semibold">💡 SINGLE-CLICK to select • DRAG anywhere (crops at canvas edges)</p>
-            <p className="text-gray-700">DOUBLE-CLICK to delete • Elements clip like real collages</p>
+            <p className="text-yellow-400 font-semibold">💡 CLICK elements to select & bring to front • DRAG to position</p>
+            <p className="text-gray-700">DOUBLE-CLICK to delete • Elements auto-layer within their type</p>
           </div>
         </div>
       </div>
