@@ -18,8 +18,8 @@ export default function CollageCreator() {
   const [inspirationMode, setInspirationMode] = useState<'minimal' | 'mid' | 'high'>('mid')
   const [isMobile, setIsMobile] = useState(false)
   
-  // OPTIMIZED: Smaller initial batches for faster loading
-  const [visibleElementsCount, setVisibleElementsCount] = useState(30)
+  // OPTIMIZED: Smaller initial batches for faster category switching
+  const [visibleElementsCount, setVisibleElementsCount] = useState(24)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [totalElementCount, setTotalElementCount] = useState(0)
   
@@ -78,7 +78,7 @@ export default function CollageCreator() {
     const checkMobile = () => {
       const mobile = window.innerWidth < 1024
       setIsMobile(mobile)
-      setVisibleElementsCount(mobile ? 20 : 30) // Optimize for mobile
+      setVisibleElementsCount(mobile ? 18 : 24) // Optimized for faster switching
     }
     
     checkMobile()
@@ -102,55 +102,113 @@ export default function CollageCreator() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedElement])
 
-  // SIMPLE: Basic working image component (no fancy optimizations)
-  const SimpleImage = ({ element, onClick }: { element: Element, onClick: () => void }) => {
+  // HYBRID: Fast initial loading + smart lazy loading
+  const HybridImage = ({ element, onClick, index }: { element: Element, onClick: () => void, index: number }) => {
     const [imageLoaded, setImageLoaded] = useState(false)
     const [imageError, setImageError] = useState(false)
+    const [shouldLoad, setShouldLoad] = useState(index < 6) // Load first 6 immediately
+    const imgRef = useRef<HTMLDivElement>(null)
+
+    // Intersection observer for images beyond the first 6
+    useEffect(() => {
+      if (index < 6 || shouldLoad) return // Already set to load
+
+      const currentImg = imgRef.current
+      if (!currentImg) return
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              setShouldLoad(true)
+              observer.disconnect()
+            }
+          })
+        },
+        { 
+          threshold: 0.1,
+          rootMargin: '100px' // Load when 100px away from viewport
+        }
+      )
+
+      observer.observe(currentImg)
+      return () => observer.disconnect()
+    }, [index, shouldLoad])
+
+    // Staggered loading for images 6-12 to prevent overwhelming
+    useEffect(() => {
+      if (index >= 6 && index < 12 && !shouldLoad) {
+        const delay = (index - 6) * 100 // 100ms stagger
+        const timer = setTimeout(() => setShouldLoad(true), delay)
+        return () => clearTimeout(timer)
+      }
+    }, [index, shouldLoad])
+
+    const handleLoad = () => {
+      setImageLoaded(true)
+      // Cache successful loads
+      const cacheKey = `${selectedCategory}-${element.id}`
+      sessionStorage.setItem(cacheKey, 'loaded')
+    }
+
+    const handleError = () => {
+      setImageError(true)
+      console.warn(`⚠️ Failed to load: ${element.name}`)
+    }
+
+    // Check cache for previously loaded images
+    useEffect(() => {
+      const cacheKey = `${selectedCategory}-${element.id}`
+      if (sessionStorage.getItem(cacheKey) === 'loaded') {
+        setShouldLoad(true)
+      }
+    }, [selectedCategory, element.id])
 
     return (
       <div
+        ref={imgRef}
         className="aspect-square bg-gray-800 border border-gray-600 hover:border-blue-500 cursor-pointer transition-all duration-200 hover:scale-105 p-1 group relative"
         onClick={onClick}
         title={`${element.name} - Click to add`}
       >
-        <img
-          src={element.file_url}
-          alt={element.name}
-          className={`w-full h-full object-contain transition-all duration-300 ${
-            imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
-          } group-hover:opacity-80 group-hover:scale-105`}
-          onLoad={() => setImageLoaded(true)}
-          onError={() => {
-            setImageError(true)
-            console.warn(`⚠️ Failed to load: ${element.name} - URL: ${element.file_url}`)
-          }}
-          loading="lazy"
-          style={{
-            imageRendering: 'crisp-edges',
-            transform: 'translateZ(0)',
-            backfaceVisibility: 'hidden'
-          }}
-        />
+        {shouldLoad ? (
+          <img
+            src={element.file_url}
+            alt={element.name}
+            className={`w-full h-full object-contain transition-all duration-300 ${
+              imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+            } group-hover:opacity-80 group-hover:scale-105`}
+            onLoad={handleLoad}
+            onError={handleError}
+            loading="lazy"
+            style={{
+              imageRendering: 'crisp-edges',
+              transform: 'translateZ(0)',
+              backfaceVisibility: 'hidden'
+            }}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <div className="text-xs text-gray-500 animate-pulse">IMG</div>
+          </div>
+        )}
         
-        {!imageLoaded && !imageError && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-700">
-            <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+        {shouldLoad && !imageLoaded && !imageError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-700 bg-opacity-75">
+            <div className="w-3 h-3 bg-gray-400 rounded-full animate-pulse"></div>
           </div>
         )}
         
         {imageError && (
           <div className="absolute inset-0 flex items-center justify-center bg-red-900/20 border border-red-500">
-            <div className="text-center">
-              <div className="text-xs text-red-400 mb-1">Failed</div>
-              <div className="w-4 h-4 bg-red-500 rounded mx-auto"></div>
-            </div>
+            <div className="text-xs text-red-400">✗</div>
           </div>
         )}
         
-        {/* Debug info */}
-        <div className="absolute bottom-0 left-0 text-xs text-white bg-black bg-opacity-50 px-1">
-          {imageLoaded ? '✓' : imageError ? '✗' : '⏳'}
-        </div>
+        {/* Priority indicator for first 6 */}
+        {index < 6 && (
+          <div className="absolute top-1 left-1 w-2 h-2 bg-green-400 rounded-full opacity-50"></div>
+        )}
       </div>
     )
   }
@@ -182,8 +240,16 @@ export default function CollageCreator() {
       setAvailableElements(filteredElements)
       setTotalElementCount(filteredElements.length)
       
-      const uniqueCategories = Array.from(new Set(filteredElements.map(el => el.category))).sort()
-      setCategories(uniqueCategories)
+      // Get unique categories and filter out mock/sample categories
+      const allCategories = Array.from(new Set(filteredElements.map(el => el.category))).sort()
+      const cleanCategories = allCategories.filter(category => {
+        // Remove mock/sample categories from previous sessions
+        const mockCategories = ['explosions', 'nature', 'statues']
+        return !mockCategories.includes(category.toLowerCase())
+      })
+      
+      console.log(`📁 Categories: ${cleanCategories.length} (filtered out mock categories)`)
+      setCategories(cleanCategories)
       
     } catch (error) {
       console.error('❌ Error loading elements:', error)
@@ -195,16 +261,16 @@ export default function CollageCreator() {
     setIsLoadingMore(true)
     
     // Simulate network delay for better UX feedback
-    await new Promise(resolve => setTimeout(resolve, 300))
+    await new Promise(resolve => setTimeout(resolve, 200)) // Reduced delay
     
-    const increment = isMobile ? 15 : 25
+    const increment = isMobile ? 12 : 18 // Smaller increments for faster loading
     setVisibleElementsCount(prev => prev + increment)
     setIsLoadingMore(false)
   }, [isMobile])
 
-  // Reset visible count when category changes
+  // Reset visible count when category changes + clear any cached loading states
   useEffect(() => {
-    setVisibleElementsCount(isMobile ? 20 : 30)
+    setVisibleElementsCount(isMobile ? 18 : 24) // Slightly reduced for faster switching
   }, [selectedCategory, isMobile])
 
   // PERFECTED collage generation logic (based on Wild Escape success)
@@ -828,54 +894,44 @@ export default function CollageCreator() {
       ) : (
         <>
           {/* Desktop Interface */}
-          <div className="w-full lg:w-1/3 bg-black p-6 lg:p-8 flex flex-col">
-            <div className="mb-6">
-              <h1 className="text-3xl lg:text-4xl font-bold mb-2 tracking-tight bg-gradient-to-r from-green-500 to-blue-500 bg-clip-text text-transparent">
-                COLLAGE
-              </h1>
-              <h2 className="text-xl lg:text-2xl font-light tracking-wider text-gray-300">
-                CREATOR
-              </h2>
-              <div className="w-16 h-1 bg-gradient-to-r from-green-600 to-blue-600 mt-4"></div>
+          <div className="w-full lg:w-1/3 bg-black p-4 lg:p-6 flex flex-col">
+            {/* Compact Header - moved main title to page header */}
+            <div className="mb-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Sparkles size={16} className="text-blue-400" />
+                <label className="text-sm font-bold text-gray-400 tracking-wide">
+                  INSPIRATION MODE
+                </label>
+              </div>
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                {(['minimal', 'mid', 'high'] as const).map(mode => (
+                  <button
+                    key={mode}
+                    onClick={() => setInspirationMode(mode)}
+                    className={`p-2 text-xs font-bold transition-all duration-200 ${
+                      inspirationMode === mode
+                        ? 'bg-blue-600 text-white shadow-lg'
+                        : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                    }`}
+                  >
+                    {mode.toUpperCase()}
+                    <div className="text-xs font-normal opacity-75 mt-1">
+                      {mode === 'minimal' && 'Foundation only'}
+                      {mode === 'mid' && 'Balanced mix'}
+                      {mode === 'high' && 'Dense layers'}
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
             
-            <div className="flex-1 space-y-6">
-              {/* Inspiration Mode Selection */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Sparkles size={16} className="text-blue-400" />
-                  <label className="text-sm font-bold text-gray-400 tracking-wide">
-                    INSPIRATION MODE
-                  </label>
-                </div>
-                <div className="grid grid-cols-3 gap-2 mb-4">
-                  {(['minimal', 'mid', 'high'] as const).map(mode => (
-                    <button
-                      key={mode}
-                      onClick={() => setInspirationMode(mode)}
-                      className={`p-3 text-xs font-bold transition-all duration-200 ${
-                        inspirationMode === mode
-                          ? 'bg-blue-600 text-white shadow-lg'
-                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                      }`}
-                    >
-                      {mode.toUpperCase()}
-                      <div className="text-xs font-normal opacity-75 mt-1">
-                        {mode === 'minimal' && 'Foundation only'}
-                        {mode === 'mid' && 'Balanced mix'}
-                        {mode === 'high' && 'Dense layers'}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
+            <div className="flex-1 space-y-4">
               {/* Generate Inspiration */}
               <div>
                 <button
                   onClick={generateInspiration}
                   disabled={isGenerating || availableElements.length === 0}
-                  className={`w-full p-5 text-lg font-bold transition-all duration-300 disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-3 ${
+                  className={`w-full p-4 text-base font-bold transition-all duration-300 disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-3 ${
                     isGenerating 
                       ? 'bg-gray-600' 
                       : 'bg-gradient-to-r from-green-600 to-blue-600 hover:shadow-2xl hover:scale-105 transform'
@@ -883,38 +939,35 @@ export default function CollageCreator() {
                 >
                   {isGenerating ? (
                     <>
-                      <Loader2 className="animate-spin" size={20} />
+                      <Loader2 className="animate-spin" size={18} />
                       GENERATING...
                     </>
                   ) : (
                     <>
-                      <Sparkles size={20} />
+                      <Sparkles size={18} />
                       GENERATE {inspirationMode.toUpperCase()} INSPIRATION
                     </>
                   )}
                 </button>
                 <p className="text-xs text-gray-400 mt-2 text-center">
-                  Using {availableElements.length} loaded elements • All {totalElementCount} available
+                  Using {availableElements.length} loaded elements • Hybrid loading for speed
                 </p>
               </div>
 
-              {/* Element Library - OPTIMIZED */}
+              {/* Element Library - COMPACT */}
               <div className="flex-1">
-                <div className="flex items-center gap-2 mb-4">
-                  <FolderOpen size={18} className="text-blue-400" />
+                <div className="flex items-center gap-2 mb-3">
+                  <FolderOpen size={16} className="text-blue-400" />
                   <label className="text-sm font-bold text-gray-400 tracking-wide">
-                    ELEMENT LIBRARY
+                    ELEMENTS ({availableElements.length})
                   </label>
-                  <div className="text-xs text-gray-500">
-                    ({availableElements.length} total)
-                  </div>
                 </div>
                 
                 {/* Category Filter */}
                 <select
                   value={selectedCategory}
                   onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-full p-2 bg-gray-800 border border-gray-700 text-white mb-4 text-sm"
+                  className="w-full p-2 bg-gray-800 border border-gray-700 text-white mb-3 text-sm"
                 >
                   <option value="all">All Categories ({availableElements.length})</option>
                   {categories.map(category => (
@@ -925,12 +978,13 @@ export default function CollageCreator() {
                 </select>
 
                 {/* OPTIMIZED Elements Grid */}
-                <div className="max-h-80 overflow-y-auto border border-gray-700 bg-gray-900 p-2">
+                <div className="max-h-96 overflow-y-auto border border-gray-700 bg-gray-900 p-2">
                   <div className="grid grid-cols-3 gap-2">
-                    {filteredElements.slice(0, visibleElementsCount).map((element) => (
-                      <SimpleImage
+                    {filteredElements.slice(0, visibleElementsCount).map((element, index) => (
+                      <HybridImage
                         key={element.id}
                         element={element}
+                        index={index}
                         onClick={() => addElementToCanvas(element)}
                       />
                     ))}
@@ -938,15 +992,15 @@ export default function CollageCreator() {
                   
                   {/* Load More Button */}
                   {filteredElements.length > visibleElementsCount && (
-                    <div className="text-center mt-4">
+                    <div className="text-center mt-3">
                       <button
                         onClick={loadMoreElements}
                         disabled={isLoadingMore}
-                        className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 px-4 py-2 text-sm font-semibold transition-colors duration-200 flex items-center gap-2 mx-auto"
+                        className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 px-3 py-2 text-xs font-semibold transition-colors duration-200 flex items-center gap-2 mx-auto"
                       >
                         {isLoadingMore ? (
                           <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <Loader2 className="w-3 h-3 animate-spin" />
                             LOADING...
                           </>
                         ) : (
@@ -958,14 +1012,14 @@ export default function CollageCreator() {
                     </div>
                   )}
                   
-                  {visibleElementsCount >= filteredElements.length && filteredElements.length > 30 && (
+                  {visibleElementsCount >= filteredElements.length && filteredElements.length > 24 && (
                     <div className="text-center text-xs text-gray-500 mt-2">
                       All {filteredElements.length} elements loaded
                     </div>
                   )}
                   
                   {filteredElements.length === 0 && (
-                    <div className="text-center text-gray-500 py-8">
+                    <div className="text-center text-gray-500 py-6">
                       <p className="text-sm">No elements in this category</p>
                       <p className="text-xs mt-1">Try selecting "All Categories"</p>
                     </div>
@@ -1198,7 +1252,7 @@ export default function CollageCreator() {
                 </p>
                 <p className="text-gray-600">Generate inspiration, then create your masterpiece</p>
                 <p className="text-yellow-400 font-semibold">💡 CLICK elements to select • Right-click to delete</p>
-                <p className="text-green-400">🚀 Lightning-fast performance with smart loading</p>
+                <p className="text-green-400">🚀 Hybrid loading: First 6 instant, rest progressive</p>
               </div>
             </div>
           </div>
