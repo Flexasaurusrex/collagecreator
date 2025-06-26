@@ -1463,7 +1463,7 @@ export default function CollageCreator() {
                     position: 'relative'
                   }}
                 >
-                  {/* PIXEL-PERFECT: DOM reordering with pixel-based click detection */}
+                  {/* SHAPE-AWARE: DOM reordering with contour-based hit areas */}
                   {collageElements
                     .slice() // Create copy to avoid mutating original array
                     .sort((a, b) => a.zIndex - b.zIndex) // Sort by z-index - higher z-index = later in DOM = on top
