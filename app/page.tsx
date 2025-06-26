@@ -205,7 +205,7 @@ export default function CollageCreator() {
       // Filter out problematic elements that might appear as dots
       const filteredElements = elements.filter(el => {
         const name = el.name.toLowerCase()
-        const filename = el.filename?.toLowerCase() || ''
+        const category = el.category?.toLowerCase() || ''
         
         // Exclude elements that might appear as dots
         const problematicKeywords = [
@@ -215,7 +215,7 @@ export default function CollageCreator() {
         ]
         
         const hasProblematicName = problematicKeywords.some(keyword => 
-          name.includes(keyword) || filename.includes(keyword)
+          name.includes(keyword) || category.includes(keyword)
         )
         
         return !hasProblematicName
