@@ -802,7 +802,7 @@ export default function CollageCreator() {
                       <div
                         key={elementId}
                         className={`collage-element absolute select-none transition-all duration-200 ease-out ${
-                          isSelected ? 'ring-4 ring-yellow-400 ring-offset-4 ring-offset-white shadow-2xl' : ''
+                          isSelected ? 'ring-2 ring-yellow-400 shadow-2xl' : ''
                         } ${draggedCanvasElement === element ? 'opacity-90 scale-110 z-50' : ''}`}
                         style={{
                           left: `${element.x}%`,
@@ -815,6 +815,7 @@ export default function CollageCreator() {
                           pointerEvents: 'auto',
                           willChange: draggedCanvasElement === element ? 'transform' : 'auto',
                           backfaceVisibility: 'hidden'
+                          // REMOVED: No size constraints - let image define bounds
                         }}
                         onTouchStart={(e) => {
                           e.stopPropagation()
@@ -834,7 +835,7 @@ export default function CollageCreator() {
                         <img
                           src={element.file_url}
                           alt={element.name}
-                          className="max-w-32 max-h-32 object-contain drop-shadow-lg pointer-events-none"
+                          className="object-contain drop-shadow-lg pointer-events-none"
                           loading="lazy"
                           onError={(e) => {
                             e.currentTarget.style.display = 'none'
@@ -842,12 +843,18 @@ export default function CollageCreator() {
                           style={{
                             imageRendering: 'crisp-edges',
                             transform: 'translate3d(0, 0, 0)',
-                            backfaceVisibility: 'hidden'
+                            backfaceVisibility: 'hidden',
+                            // HUGGING BOUNDS: Natural image sizing
+                            display: 'block',
+                            maxWidth: 'none',
+                            maxHeight: 'none',
+                            width: 'auto',
+                            height: 'auto'
                           }}
                         />
                         {isSelected && (
-                          <div className="absolute -top-3 -right-3 w-6 h-6 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg animate-pulse">
-                            <div className="w-2 h-2 bg-white rounded-full"></div>
+                          <div className="absolute -top-2 -right-2 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg animate-pulse">
+                            <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
                           </div>
                         )}
                       </div>
@@ -1285,7 +1292,7 @@ export default function CollageCreator() {
                       <div
                         key={elementId}
                         className={`collage-element absolute select-none transition-all duration-200 ease-out ${
-                          isSelected ? 'ring-4 ring-yellow-400 ring-offset-4 ring-offset-white shadow-2xl' : 'hover:ring-2 hover:ring-blue-400 hover:ring-offset-2 hover:ring-offset-white'
+                          isSelected ? 'ring-2 ring-yellow-400 shadow-2xl' : 'hover:ring-1 hover:ring-blue-400'
                         } ${draggedCanvasElement === element ? 'opacity-90 scale-110 z-50' : ''}`}
                         style={{
                           left: `${element.x}%`,
@@ -1300,9 +1307,7 @@ export default function CollageCreator() {
                           pointerEvents: 'auto',
                           willChange: draggedCanvasElement === element ? 'transform' : 'auto',
                           backfaceVisibility: 'hidden',
-                          // ENHANCED: Ensure elements have minimum clickable area
-                          minWidth: '24px',
-                          minHeight: '24px'
+                          // REMOVED: No more minWidth/minHeight - let image define the bounds
                         }}
                         onMouseDown={(e) => {
                           // ENHANCED: Prevent event interference during drag start
@@ -1341,7 +1346,7 @@ export default function CollageCreator() {
                         <img
                           src={element.file_url}
                           alt={element.name}
-                          className="max-w-48 max-h-48 lg:max-w-64 lg:max-h-64 object-contain drop-shadow-lg pointer-events-none"
+                          className="object-contain drop-shadow-lg pointer-events-none"
                           loading="lazy"
                           onError={(e) => {
                             e.currentTarget.style.opacity = '0.3'
@@ -1350,12 +1355,18 @@ export default function CollageCreator() {
                           style={{
                             imageRendering: 'crisp-edges',
                             transform: 'translate3d(0, 0, 0)',
-                            backfaceVisibility: 'hidden'
+                            backfaceVisibility: 'hidden',
+                            // HUGGING BOUNDS: Let the image define its own size naturally
+                            display: 'block',
+                            maxWidth: 'none',
+                            maxHeight: 'none',
+                            width: 'auto',
+                            height: 'auto'
                           }}
                         />
                         {isSelected && (
-                          <div className="absolute -top-4 -right-4 w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg pointer-events-none animate-pulse">
-                            <div className="w-3 h-3 bg-white rounded-full"></div>
+                          <div className="absolute -top-2 -right-2 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg pointer-events-none animate-pulse">
+                            <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
                           </div>
                         )}
                       </div>
