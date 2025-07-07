@@ -30,8 +30,9 @@ export default function CollageCreator() {
   // ADD: Animation state
   const [isAnimating, setIsAnimating] = useState(false)
   const [animationGrid, setAnimationGrid] = useState<AnimationSquare[]>([])
-  const [animationIntensity, setAnimationIntensity] = useState(50) // 0-100 intensity slider
-  const [animationMode, setAnimationMode] = useState<'wave' | 'strobe' | 'rainbow'>('wave')
+  const [animationIntensity, setAnimationIntensity] = useState(50) // 0-100 opacity/visibility
+  const [animationSpeed, setAnimationSpeed] = useState(50) // 0-100 animation speed
+  const [animationMode, setAnimationMode] = useState<'wave' | 'pixelate' | 'rainbow'>('wave')
   
   // OPTIMIZED: Smaller initial batches for faster category switching
   const [visibleElementsCount, setVisibleElementsCount] = useState(24)
@@ -973,7 +974,7 @@ export default function CollageCreator() {
                 {isAnimating && (
                   <div className="mt-2 bg-purple-900/20 border border-purple-500 rounded p-2 space-y-2">
                     <div>
-                      <label className="text-xs text-purple-400 font-bold">INTENSITY: {animationIntensity}%</label>
+                      <label className="text-xs text-purple-400 font-bold">OPACITY: {animationIntensity}%</label>
                       <input
                         type="range"
                         min="0"
@@ -984,8 +985,20 @@ export default function CollageCreator() {
                       />
                     </div>
                     
+                    <div>
+                      <label className="text-xs text-purple-400 font-bold">SPEED: {animationSpeed}%</label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={animationSpeed}
+                        onChange={(e) => setAnimationSpeed(parseInt(e.target.value))}
+                        className="w-full accent-purple-400 h-2"
+                      />
+                    </div>
+                    
                     <div className="grid grid-cols-3 gap-1">
-                      {(['wave', 'strobe', 'rainbow'] as const).map(mode => (
+                      {(['wave', 'pixelate', 'rainbow'] as const).map(mode => (
                         <button
                           key={mode}
                           onClick={() => setAnimationMode(mode)}
@@ -1157,36 +1170,58 @@ export default function CollageCreator() {
                 {isAnimating && animationGrid.length > 0 && (
                   <div className="absolute inset-0 pointer-events-none">
                     {animationGrid.map((square, index) => {
-                      // Calculate wave position for syncopated effects
-                      const wavePosition = (square.x + square.y * 2 + Date.now() / 500) % 20
-                      const isInWave = wavePosition < 10
+                      // Calculate sliding puzzle movement
+                      const time = Date.now() / (100 - animationSpeed + 10) // Speed control
+                      const slideX = Math.sin(time * 0.001 + square.x * 0.5) * 20
+                      const slideY = Math.cos(time * 0.001 + square.y * 0.3) * 20
                       
-                      // Intensity affects size and brightness
-                      const intensityScale = 0.5 + (animationIntensity / 100) * 0.5
-                      const intensityBrightness = 0.3 + (animationIntensity / 100) * 0.7
+                      // Group squares into Tetris-like blocks
+                      const blockPattern = (square.x + square.y) % 5
+                      const opacity = (animationIntensity / 100) * 0.7 // Max 70% opacity
                       
                       // Mode-specific styles
                       let modeStyles: React.CSSProperties = {}
                       
-                      if (animationMode === 'strobe') {
-                        // Strobe mode - rapid flashing
+                      if (animationMode === 'pixelate') {
+                        // Sliding puzzle mode
+                        const blockSize = blockPattern < 2 ? '10%' : '5%'
+                        const shouldShow = Math.sin(time * 0.0005 + index * 0.1) > -0.3
+                        
                         modeStyles = {
-                          animation: `pixelStrobe ${0.1 + square.delay * 0.2}s infinite`,
-                          filter: `brightness(${intensityBrightness * 2})`
+                          width: blockSize,
+                          height: blockSize,
+                          opacity: shouldShow ? opacity : 0,
+                          transform: `translate(calc(-50% + ${slideX}px), calc(-50% + ${slideY}px))`,
+                          transition: `all ${2 + animationSpeed / 25}s ease-in-out`,
+                          backgroundColor: square.color,
+                          backdropFilter: 'blur(2px)',
+                          borderRadius: '10%',
+                          border: '1px solid rgba(255, 255, 255, 0.2)'
                         }
                       } else if (animationMode === 'rainbow') {
-                        // Rainbow mode - hue rotation
-                        const hueShift = (square.x * 20 + square.y * 20 + Date.now() / 20) % 360
+                        // Rainbow mode - translucent
+                        const hueShift = (time * 0.1 + square.x * 20 + square.y * 20) % 360
+                        
                         modeStyles = {
-                          filter: `hue-rotate(${hueShift}deg) brightness(${intensityBrightness * 1.5})`,
-                          animation: `pixelRainbow ${square.duration}s ${square.delay}s infinite alternate ease-in-out`
+                          backgroundColor: square.color,
+                          opacity: opacity * 0.6,
+                          filter: `hue-rotate(${hueShift}deg) saturate(1.2)`,
+                          transform: `translate(calc(-50% + ${Math.sin(time * 0.001 + index) * 10}px), calc(-50% + ${Math.cos(time * 0.001 + index) * 10}px))`,
+                          transition: 'transform 2s ease-in-out',
+                          borderRadius: '15%',
+                          backdropFilter: 'blur(1px)'
                         }
                       } else {
-                        // Wave mode - original with intensity
+                        // Wave mode
+                        const waveOffset = Math.sin(time * 0.001 + square.x * 0.3 + square.y * 0.2) * 10
+                        
                         modeStyles = {
-                          animation: `pixelWave ${square.duration}s ${square.delay}s infinite alternate ease-in-out, pixelFloat ${square.duration * 1.5}s ${square.delay * 0.5}s infinite alternate ease-in-out`,
-                          filter: `brightness(${isInWave ? intensityBrightness * 1.5 : intensityBrightness})`,
-                          transform: `translate(-50%, -50%) scale(${isInWave ? intensityScale * 1.2 : intensityScale})`
+                          backgroundColor: square.color,
+                          opacity: opacity,
+                          transform: `translate(calc(-50% + ${waveOffset}px), -50%) scale(${0.8 + Math.sin(time * 0.0005 + index * 0.1) * 0.3})`,
+                          transition: 'all 1s ease-in-out',
+                          borderRadius: '20%',
+                          backdropFilter: 'blur(1px)'
                         }
                       }
                       
@@ -1199,83 +1234,11 @@ export default function CollageCreator() {
                             top: `${(square.y / 20) * 100}%`,
                             width: '5%',
                             height: '5%',
-                            backgroundColor: square.color,
-                            borderRadius: '15%',
-                            boxShadow: `0 0 ${8 + intensityScale * 12}px rgba(255, 255, 255, ${intensityBrightness * 0.5})`,
                             ...modeStyles
                           }}
                         />
                       )
                     })}
-                    
-                    {/* CSS Animations */}
-                    <style dangerouslySetInnerHTML={{ __html: `
-                      @keyframes pixelWave {
-                        0% {
-                          transform: translate(-50%, -50%) scale(0.8) rotate(0deg);
-                          opacity: 0.7;
-                        }
-                        25% {
-                          transform: translate(-50%, -50%) scale(1.1) rotate(5deg);
-                          opacity: 0.9;
-                        }
-                        50% {
-                          transform: translate(-50%, -50%) scale(0.9) rotate(-5deg);
-                          opacity: 0.6;
-                        }
-                        75% {
-                          transform: translate(-50%, -50%) scale(1.2) rotate(3deg);
-                          opacity: 0.8;
-                        }
-                        100% {
-                          transform: translate(-50%, -50%) scale(0.8) rotate(-3deg);
-                          opacity: 0.7;
-                        }
-                      }
-                      
-                      @keyframes pixelFloat {
-                        0% {
-                          transform: translate(-50%, -50%) translateX(0) translateY(0);
-                        }
-                        33% {
-                          transform: translate(-50%, -50%) translateX(3px) translateY(-2px);
-                        }
-                        66% {
-                          transform: translate(-50%, -50%) translateX(-2px) translateY(3px);
-                        }
-                        100% {
-                          transform: translate(-50%, -50%) translateX(0) translateY(0);
-                        }
-                      }
-                      
-                      @keyframes pixelStrobe {
-                        0%, 10% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
-                        11%, 20% { opacity: 0.1; transform: translate(-50%, -50%) scale(0.8); }
-                        21%, 30% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
-                        31%, 40% { opacity: 0.2; transform: translate(-50%, -50%) scale(0.9); }
-                        41%, 50% { opacity: 1; transform: translate(-50%, -50%) scale(1.3); }
-                        51%, 60% { opacity: 0.1; transform: translate(-50%, -50%) scale(0.7); }
-                        61%, 70% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
-                        71%, 80% { opacity: 0.3; transform: translate(-50%, -50%) scale(0.8); }
-                        81%, 90% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
-                        91%, 100% { opacity: 0.2; transform: translate(-50%, -50%) scale(0.9); }
-                      }
-                      
-                      @keyframes pixelRainbow {
-                        0% {
-                          transform: translate(-50%, -50%) scale(0.9) rotate(0deg);
-                          filter: hue-rotate(0deg) saturate(1.5);
-                        }
-                        50% {
-                          transform: translate(-50%, -50%) scale(1.2) rotate(180deg);
-                          filter: hue-rotate(180deg) saturate(2);
-                        }
-                        100% {
-                          transform: translate(-50%, -50%) scale(0.9) rotate(360deg);
-                          filter: hue-rotate(360deg) saturate(1.5);
-                        }
-                      }
-                    `}} />
                   </div>
                 )}
               </div>
@@ -1363,7 +1326,7 @@ export default function CollageCreator() {
                   {isAnimating && (
                     <div className="bg-purple-900/20 border border-purple-500 rounded p-3 space-y-3">
                       <div>
-                        <label className="text-xs text-purple-400 font-bold">INTENSITY</label>
+                        <label className="text-xs text-purple-400 font-bold">OPACITY</label>
                         <input
                           type="range"
                           min="0"
@@ -1376,9 +1339,22 @@ export default function CollageCreator() {
                       </div>
                       
                       <div>
+                        <label className="text-xs text-purple-400 font-bold">SPEED</label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={animationSpeed}
+                          onChange={(e) => setAnimationSpeed(parseInt(e.target.value))}
+                          className="w-full accent-purple-400"
+                        />
+                        <div className="text-xs text-gray-500 text-center">{animationSpeed}%</div>
+                      </div>
+                      
+                      <div>
                         <label className="text-xs text-purple-400 font-bold mb-2 block">MODE</label>
                         <div className="grid grid-cols-3 gap-2">
-                          {(['wave', 'strobe', 'rainbow'] as const).map(mode => (
+                          {(['wave', 'pixelate', 'rainbow'] as const).map(mode => (
                             <button
                               key={mode}
                               onClick={() => setAnimationMode(mode)}
@@ -1841,36 +1817,59 @@ export default function CollageCreator() {
                 {isAnimating && animationGrid.length > 0 && (
                   <div className="absolute inset-0 pointer-events-none">
                     {animationGrid.map((square, index) => {
-                      // Calculate wave position for syncopated effects
-                      const wavePosition = (square.x + square.y * 2 + Date.now() / 500) % 20
-                      const isInWave = wavePosition < 10
+                      // Calculate sliding puzzle movement
+                      const time = Date.now() / (100 - animationSpeed + 10) // Speed control
+                      const slideX = Math.sin(time * 0.001 + square.x * 0.5) * 20
+                      const slideY = Math.cos(time * 0.001 + square.y * 0.3) * 20
                       
-                      // Intensity affects size and brightness
-                      const intensityScale = 0.5 + (animationIntensity / 100) * 0.5
-                      const intensityBrightness = 0.3 + (animationIntensity / 100) * 0.7
+                      // Group squares into Tetris-like blocks (2x2, 3x1, etc)
+                      const blockPattern = (square.x + square.y) % 5
+                      const isMainBlock = square.x % 2 === 0 && square.y % 2 === 0
+                      const opacity = (animationIntensity / 100) * 0.7 // Max 70% opacity to always show collage
                       
                       // Mode-specific styles
                       let modeStyles: React.CSSProperties = {}
                       
-                      if (animationMode === 'strobe') {
-                        // Strobe mode - rapid flashing
+                      if (animationMode === 'pixelate') {
+                        // Sliding puzzle mode - blocks slide around revealing different sections
+                        const blockSize = blockPattern < 2 ? '10%' : '5%' // Some blocks are bigger
+                        const shouldShow = Math.sin(time * 0.0005 + index * 0.1) > -0.3 // Appear/disappear cycle
+                        
                         modeStyles = {
-                          animation: `pixelStrobe ${0.1 + square.delay * 0.2}s infinite`,
-                          filter: `brightness(${intensityBrightness * 2})`
+                          width: blockSize,
+                          height: blockSize,
+                          opacity: shouldShow ? opacity : 0,
+                          transform: `translate(calc(-50% + ${slideX}px), calc(-50% + ${slideY}px))`,
+                          transition: `all ${2 + animationSpeed / 25}s ease-in-out`,
+                          backgroundColor: square.color,
+                          backdropFilter: 'blur(2px)',
+                          borderRadius: '10%',
+                          border: '1px solid rgba(255, 255, 255, 0.2)'
                         }
                       } else if (animationMode === 'rainbow') {
-                        // Rainbow mode - hue rotation
-                        const hueShift = (square.x * 20 + square.y * 20 + Date.now() / 20) % 360
+                        // Rainbow mode - but translucent to show collage
+                        const hueShift = (time * 0.1 + square.x * 20 + square.y * 20) % 360
+                        
                         modeStyles = {
-                          filter: `hue-rotate(${hueShift}deg) brightness(${intensityBrightness * 1.5})`,
-                          animation: `pixelRainbow ${square.duration}s ${square.delay}s infinite alternate ease-in-out`
+                          backgroundColor: square.color,
+                          opacity: opacity * 0.6, // Even more translucent for rainbow
+                          filter: `hue-rotate(${hueShift}deg) saturate(1.2)`,
+                          transform: `translate(calc(-50% + ${Math.sin(time * 0.001 + index) * 10}px), calc(-50% + ${Math.cos(time * 0.001 + index) * 10}px))`,
+                          transition: 'transform 2s ease-in-out',
+                          borderRadius: '15%',
+                          backdropFilter: 'blur(1px)'
                         }
                       } else {
-                        // Wave mode - original with intensity
+                        // Wave mode - original flowing effect but more translucent
+                        const waveOffset = Math.sin(time * 0.001 + square.x * 0.3 + square.y * 0.2) * 10
+                        
                         modeStyles = {
-                          animation: `pixelWave ${square.duration}s ${square.delay}s infinite alternate ease-in-out, pixelFloat ${square.duration * 1.5}s ${square.delay * 0.5}s infinite alternate ease-in-out`,
-                          filter: `brightness(${isInWave ? intensityBrightness * 1.5 : intensityBrightness})`,
-                          transform: `translate(-50%, -50%) scale(${isInWave ? intensityScale * 1.2 : intensityScale})`
+                          backgroundColor: square.color,
+                          opacity: opacity,
+                          transform: `translate(calc(-50% + ${waveOffset}px), -50%) scale(${0.8 + Math.sin(time * 0.0005 + index * 0.1) * 0.3})`,
+                          transition: 'all 1s ease-in-out',
+                          borderRadius: '20%',
+                          backdropFilter: 'blur(1px)'
                         }
                       }
                       
@@ -1883,83 +1882,11 @@ export default function CollageCreator() {
                             top: `${(square.y / 20) * 100}%`,
                             width: '5%',
                             height: '5%',
-                            backgroundColor: square.color,
-                            borderRadius: '15%',
-                            boxShadow: `0 0 ${8 + intensityScale * 12}px rgba(255, 255, 255, ${intensityBrightness * 0.5})`,
                             ...modeStyles
                           }}
                         />
                       )
                     })}
-                    
-                    {/* ADD: CSS Animations */}
-                    <style dangerouslySetInnerHTML={{ __html: `
-                      @keyframes pixelWave {
-                        0% {
-                          transform: translate(-50%, -50%) scale(0.8) rotate(0deg);
-                          opacity: 0.7;
-                        }
-                        25% {
-                          transform: translate(-50%, -50%) scale(1.1) rotate(5deg);
-                          opacity: 0.9;
-                        }
-                        50% {
-                          transform: translate(-50%, -50%) scale(0.9) rotate(-5deg);
-                          opacity: 0.6;
-                        }
-                        75% {
-                          transform: translate(-50%, -50%) scale(1.2) rotate(3deg);
-                          opacity: 0.8;
-                        }
-                        100% {
-                          transform: translate(-50%, -50%) scale(0.8) rotate(-3deg);
-                          opacity: 0.7;
-                        }
-                      }
-                      
-                      @keyframes pixelFloat {
-                        0% {
-                          transform: translate(-50%, -50%) translateX(0) translateY(0);
-                        }
-                        33% {
-                          transform: translate(-50%, -50%) translateX(3px) translateY(-2px);
-                        }
-                        66% {
-                          transform: translate(-50%, -50%) translateX(-2px) translateY(3px);
-                        }
-                        100% {
-                          transform: translate(-50%, -50%) translateX(0) translateY(0);
-                        }
-                      }
-                      
-                      @keyframes pixelStrobe {
-                        0%, 10% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
-                        11%, 20% { opacity: 0.1; transform: translate(-50%, -50%) scale(0.8); }
-                        21%, 30% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
-                        31%, 40% { opacity: 0.2; transform: translate(-50%, -50%) scale(0.9); }
-                        41%, 50% { opacity: 1; transform: translate(-50%, -50%) scale(1.3); }
-                        51%, 60% { opacity: 0.1; transform: translate(-50%, -50%) scale(0.7); }
-                        61%, 70% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
-                        71%, 80% { opacity: 0.3; transform: translate(-50%, -50%) scale(0.8); }
-                        81%, 90% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
-                        91%, 100% { opacity: 0.2; transform: translate(-50%, -50%) scale(0.9); }
-                      }
-                      
-                      @keyframes pixelRainbow {
-                        0% {
-                          transform: translate(-50%, -50%) scale(0.9) rotate(0deg);
-                          filter: hue-rotate(0deg) saturate(1.5);
-                        }
-                        50% {
-                          transform: translate(-50%, -50%) scale(1.2) rotate(180deg);
-                          filter: hue-rotate(180deg) saturate(2);
-                        }
-                        100% {
-                          transform: translate(-50%, -50%) scale(0.9) rotate(360deg);
-                          filter: hue-rotate(360deg) saturate(1.5);
-                        }
-                      }
-                    `}} />
                   </div>
                 )}
               </div>
