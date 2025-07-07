@@ -1173,6 +1173,7 @@ export default function CollageCreator() {
       ) : (
         <>
           {/* Desktop Interface */}
+          {/* Desktop Interface */}
           <div className="flex-1 bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden">
             <div className="w-full h-full flex items-center justify-center p-4">
               <div 
