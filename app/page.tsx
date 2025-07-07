@@ -146,7 +146,7 @@ export default function CollageCreator() {
       const ctx = canvas.getContext('2d')
       if (!ctx) return
       
-      const gridSize = 20 // 20x20 grid
+      const gridSize = 10 // REDUCED from 20x20 to 10x10 for performance
       const cellWidth = canvas.width / gridSize
       const cellHeight = canvas.height / gridSize
       
@@ -973,6 +973,10 @@ export default function CollageCreator() {
                 
                 {isAnimating && (
                   <div className="mt-2 bg-purple-900/20 border border-purple-500 rounded p-2 space-y-2">
+                    <div className="text-xs text-yellow-400 text-center">
+                      ⚡ Optimized: 10x10 grid
+                    </div>
+                    
                     <div>
                       <label className="text-xs text-purple-400 font-bold">OPACITY: {animationIntensity}%</label>
                       <input
@@ -1057,6 +1061,118 @@ export default function CollageCreator() {
           </div>
           
           {/* Mobile Canvas */}
+          <div className="flex-1 bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden">
+            <div className="w-full h-full flex items-center justify-center p-4">
+              <div 
+                className="relative shadow-2xl"
+                style={{ 
+                  aspectRatio: '3/4', 
+                  width: '100%',
+                  maxWidth: '400px',
+                  maxHeight: 'calc(100vh - 280px)',
+                  overflow: 'hidden',
+                  cursor: 'default'
+                }}
+                onTouchMove={(e) => {
+                  const touch = e.touches[0]
+                  if (touch && draggedCanvasElement && canvasRef.current) {
+                    const rect = canvasRef.current.getBoundingClientRect()
+                    const newX = ((touch.clientX - rect.left - dragOffset.x) / rect.width) * 100
+                    const newY = ((touch.clientY - rect.top - dragOffset.y) / rect.height) * 100
+                    // GENEROUS mobile constraints
+                    const constrainedX = Math.max(-200, Math.min(300, newX))
+                    const constrainedY = Math.max(-200, Math.min(300, newY))
+                    updateElementSmooth(draggedCanvasElement, { x: constrainedX, y: constrainedY })
+                    setDraggedCanvasElement({ ...draggedCanvasElement, x: constrainedX, y: constrainedY })
+                  }
+                }}
+                onTouchEnd={() => {
+                  setDraggedCanvasElement(null)
+                  setIsDragging(false)
+                }}
+              >
+                <div 
+                  ref={canvasRef}
+                  className="collage-canvas bg-white relative w-full h-full"
+                  style={{
+                    transform: `scale(${zoom}) translate3d(${pan.x / zoom}px, ${pan.y / zoom}px, 0)`,
+                    transformOrigin: 'center',
+                    transition: isDragging ? 'none' : 'transform 0.2s ease-out',
+                    willChange: isDragging || zoom !== 1 ? 'transform' : 'auto',
+                    backfaceVisibility: 'hidden',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {/* CLEAN: DOM reordering for mobile - NO debug tags */}
+                  {collageElements
+                    .slice() // Create copy to avoid mutating original array
+                    .sort((a, b) => a.zIndex - b.zIndex) // Sort by z-index - lower first, higher last (on top)
+                    .map((element) => {
+                    const elementId = `${element.id}-${element.x}-${element.y}`
+                    const isSelected = selectedElementId === elementId
+                    
+                    return (
+                      <div
+                        key={elementId}
+                        className={`collage-element absolute select-none transition-all duration-200 ease-out ${
+                          isSelected ? 'ring-2 ring-yellow-400 shadow-2xl' : ''
+                        } ${draggedCanvasElement === element ? 'opacity-90 scale-110' : ''}`}
+                        style={{
+                          left: `${element.x}%`,
+                          top: `${element.y}%`,
+                          transform: `translate3d(0, 0, 0) rotate(${element.rotation}deg) scale(${element.scale})`,
+                          opacity: draggedCanvasElement === element ? 0.9 : element.opacity,
+                          transformOrigin: 'center',
+                          cursor: 'pointer',
+                          pointerEvents: 'auto',
+                          willChange: draggedCanvasElement === element ? 'transform' : 'auto',
+                          backfaceVisibility: 'hidden'
+                        }}
+                        onTouchStart={(e) => handleElementTouchStart(e, element)}
+                      >
+                        <img
+                          src={element.file_url}
+                          alt={element.name}
+                          className="object-contain drop-shadow-lg pointer-events-none"
+                          loading="lazy"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none'
+                          }}
+                          style={{
+                            imageRendering: 'crisp-edges',
+                            transform: 'translate3d(0, 0, 0)',
+                            backfaceVisibility: 'hidden',
+                            display: 'block',
+                            maxWidth: '200px',
+                            maxHeight: '200px',
+                            width: 'auto',
+                            height: 'auto'
+                          }}
+                        />
+                        {isSelected && (
+                          <div className="absolute -top-2 -right-2 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg animate-pulse">
+                            <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                          </div>
+                        )}
+                        {/* REMOVED: Z-index debug indicator for clean interface */}
+                      </div>
+                    )
+                  })}
+                  
+                  {collageElements.length === 0 && (
+                    <div className="flex items-center justify-center h-full text-gray-400">
+                      <div className="text-center p-4">
+                        <Sparkles className="mx-auto text-gray-300 mb-2" size={32} />
+                        <p className="text-sm mb-2">Ready to create?</p>
+                        <p className="text-xs text-gray-500">Tap "Generate Collage" above</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+        </>
+      ) : (
+        <>
+          {/* Desktop Interface */}
           <div className="flex-1 bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden">
             <div className="w-full h-full flex items-center justify-center p-4">
               <div 
@@ -1325,6 +1441,10 @@ export default function CollageCreator() {
                   
                   {isAnimating && (
                     <div className="bg-purple-900/20 border border-purple-500 rounded p-3 space-y-3">
+                      <div className="text-xs text-yellow-400 text-center">
+                        ⚡ Optimized: 10x10 grid for smooth performance
+                      </div>
+                      
                       <div>
                         <label className="text-xs text-purple-400 font-bold">OPACITY</label>
                         <input
@@ -1817,76 +1937,97 @@ export default function CollageCreator() {
                 {isAnimating && animationGrid.length > 0 && (
                   <div className="absolute inset-0 pointer-events-none">
                     {animationGrid.map((square, index) => {
-                      // Calculate sliding puzzle movement
-                      const time = Date.now() / (100 - animationSpeed + 10) // Speed control
-                      const slideX = Math.sin(time * 0.001 + square.x * 0.5) * 20
-                      const slideY = Math.cos(time * 0.001 + square.y * 0.3) * 20
+                      const opacity = (animationIntensity / 100) * 0.6 // Max 60% opacity
+                      const animDuration = 10 - (animationSpeed / 100) * 8 // 2-10 seconds
                       
-                      // Group squares into Tetris-like blocks (2x2, 3x1, etc)
-                      const blockPattern = (square.x + square.y) % 5
-                      const isMainBlock = square.x % 2 === 0 && square.y % 2 === 0
-                      const opacity = (animationIntensity / 100) * 0.7 // Max 70% opacity to always show collage
-                      
-                      // Mode-specific styles
-                      let modeStyles: React.CSSProperties = {}
-                      
+                      // Simple CSS-based animations for performance
                       if (animationMode === 'pixelate') {
-                        // Sliding puzzle mode - blocks slide around revealing different sections
-                        const blockSize = blockPattern < 2 ? '10%' : '5%' // Some blocks are bigger
-                        const shouldShow = Math.sin(time * 0.0005 + index * 0.1) > -0.3 // Appear/disappear cycle
-                        
-                        modeStyles = {
-                          width: blockSize,
-                          height: blockSize,
-                          opacity: shouldShow ? opacity : 0,
-                          transform: `translate(calc(-50% + ${slideX}px), calc(-50% + ${slideY}px))`,
-                          transition: `all ${2 + animationSpeed / 25}s ease-in-out`,
-                          backgroundColor: square.color,
-                          backdropFilter: 'blur(2px)',
-                          borderRadius: '10%',
-                          border: '1px solid rgba(255, 255, 255, 0.2)'
-                        }
+                        return (
+                          <div
+                            key={`pixel-${square.x}-${square.y}`}
+                            className="absolute"
+                            style={{
+                              left: `${(square.x / 10) * 100}%`,
+                              top: `${(square.y / 10) * 100}%`,
+                              width: '10%',
+                              height: '10%',
+                              backgroundColor: square.color,
+                              opacity: opacity,
+                              borderRadius: '10%',
+                              animation: `slidePixel ${animDuration}s ${square.delay}s infinite ease-in-out`,
+                              border: '1px solid rgba(255, 255, 255, 0.1)'
+                            }}
+                          />
+                        )
                       } else if (animationMode === 'rainbow') {
-                        // Rainbow mode - but translucent to show collage
-                        const hueShift = (time * 0.1 + square.x * 20 + square.y * 20) % 360
-                        
-                        modeStyles = {
-                          backgroundColor: square.color,
-                          opacity: opacity * 0.6, // Even more translucent for rainbow
-                          filter: `hue-rotate(${hueShift}deg) saturate(1.2)`,
-                          transform: `translate(calc(-50% + ${Math.sin(time * 0.001 + index) * 10}px), calc(-50% + ${Math.cos(time * 0.001 + index) * 10}px))`,
-                          transition: 'transform 2s ease-in-out',
-                          borderRadius: '15%',
-                          backdropFilter: 'blur(1px)'
-                        }
+                        return (
+                          <div
+                            key={`pixel-${square.x}-${square.y}`}
+                            className="absolute"
+                            style={{
+                              left: `${(square.x / 10) * 100}%`,
+                              top: `${(square.y / 10) * 100}%`,
+                              width: '10%',
+                              height: '10%',
+                              backgroundColor: square.color,
+                              opacity: opacity * 0.7,
+                              borderRadius: '15%',
+                              animation: `rainbowShift ${animDuration}s ${square.delay}s infinite linear`
+                            }}
+                          />
+                        )
                       } else {
-                        // Wave mode - original flowing effect but more translucent
-                        const waveOffset = Math.sin(time * 0.001 + square.x * 0.3 + square.y * 0.2) * 10
-                        
-                        modeStyles = {
-                          backgroundColor: square.color,
-                          opacity: opacity,
-                          transform: `translate(calc(-50% + ${waveOffset}px), -50%) scale(${0.8 + Math.sin(time * 0.0005 + index * 0.1) * 0.3})`,
-                          transition: 'all 1s ease-in-out',
-                          borderRadius: '20%',
-                          backdropFilter: 'blur(1px)'
+                        return (
+                          <div
+                            key={`pixel-${square.x}-${square.y}`}
+                            className="absolute"
+                            style={{
+                              left: `${(square.x / 10) * 100}%`,
+                              top: `${(square.y / 10) * 100}%`,
+                              width: '10%',
+                              height: '10%',
+                              backgroundColor: square.color,
+                              opacity: opacity,
+                              borderRadius: '20%',
+                              animation: `waveFlow ${animDuration}s ${square.delay}s infinite ease-in-out`
+                            }}
+                          />
+                        )
+                      }
+                    })}
+                    
+                    {/* Optimized CSS Animations */}
+                    <style dangerouslySetInnerHTML={{ __html: `
+                      @keyframes slidePixel {
+                        0%, 100% { 
+                          transform: translate(0, 0) scale(1);
+                        }
+                        25% { 
+                          transform: translate(20px, -10px) scale(0.9);
+                        }
+                        50% { 
+                          transform: translate(-15px, 15px) scale(1.1);
+                        }
+                        75% { 
+                          transform: translate(10px, 10px) scale(0.95);
                         }
                       }
                       
-                      return (
-                        <div
-                          key={`pixel-${square.x}-${square.y}`}
-                          className="absolute"
-                          style={{
-                            left: `${(square.x / 20) * 100}%`,
-                            top: `${(square.y / 20) * 100}%`,
-                            width: '5%',
-                            height: '5%',
-                            ...modeStyles
-                          }}
-                        />
-                      )
-                    })}
+                      @keyframes rainbowShift {
+                        0% { filter: hue-rotate(0deg); transform: scale(1); }
+                        50% { filter: hue-rotate(180deg); transform: scale(1.1); }
+                        100% { filter: hue-rotate(360deg); transform: scale(1); }
+                      }
+                      
+                      @keyframes waveFlow {
+                        0%, 100% { 
+                          transform: translateY(0) scale(1);
+                        }
+                        50% { 
+                          transform: translateY(-10px) scale(1.2);
+                        }
+                      }
+                    `}} />
                   </div>
                 )}
               </div>
