@@ -156,7 +156,10 @@ export default function CollageCreator() {
           const y = row * cellHeight + cellHeight / 2
           
           const imageData = ctx.getImageData(x, y, 1, 1)
-          const [r, g, b] = imageData.data
+          const pixelData = imageData.data
+          const r = pixelData[0]
+          const g = pixelData[1]
+          const b = pixelData[2]
           const color = `rgb(${r}, ${g}, ${b})`
           
           // Create syncopated delays based on position
@@ -1641,7 +1644,7 @@ export default function CollageCreator() {
                     ))}
                     
                     {/* ADD: CSS Animations */}
-                    <style jsx>{`
+                    <style dangerouslySetInnerHTML={{ __html: `
                       @keyframes pixelWave {
                         0% {
                           transform: translate(-50%, -50%) scale(0.8) rotate(0deg);
@@ -1679,7 +1682,7 @@ export default function CollageCreator() {
                           transform: translate(-50%, -50%) translateX(0) translateY(0);
                         }
                       }
-                    `}</style>
+                    `}} />
                   </div>
                 )}
               </div>
