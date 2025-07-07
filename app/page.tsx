@@ -30,6 +30,8 @@ export default function CollageCreator() {
   // ADD: Animation state
   const [isAnimating, setIsAnimating] = useState(false)
   const [animationGrid, setAnimationGrid] = useState<AnimationSquare[]>([])
+  const [animationIntensity, setAnimationIntensity] = useState(50) // 0-100 intensity slider
+  const [animationMode, setAnimationMode] = useState<'wave' | 'strobe' | 'rainbow'>('wave')
   
   // OPTIMIZED: Smaller initial batches for faster category switching
   const [visibleElementsCount, setVisibleElementsCount] = useState(24)
@@ -953,6 +955,55 @@ export default function CollageCreator() {
               )}
             </button>
             
+            {/* Mobile Pixel Wave Controls */}
+            {collageElements.length > 0 && (
+              <div className="mt-3">
+                <button
+                  onClick={toggleAnimation}
+                  className={`w-full p-2 text-xs font-bold transition-all duration-300 flex items-center justify-center gap-2 ${
+                    isAnimating 
+                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 animate-pulse' 
+                      : 'bg-gradient-to-r from-purple-600 to-pink-600'
+                  }`}
+                >
+                  <Waves size={14} />
+                  {isAnimating ? 'STOP PIXEL WAVE' : 'START PIXEL WAVE'}
+                </button>
+                
+                {isAnimating && (
+                  <div className="mt-2 bg-purple-900/20 border border-purple-500 rounded p-2 space-y-2">
+                    <div>
+                      <label className="text-xs text-purple-400 font-bold">INTENSITY: {animationIntensity}%</label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={animationIntensity}
+                        onChange={(e) => setAnimationIntensity(parseInt(e.target.value))}
+                        className="w-full accent-purple-400 h-2"
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-1">
+                      {(['wave', 'strobe', 'rainbow'] as const).map(mode => (
+                        <button
+                          key={mode}
+                          onClick={() => setAnimationMode(mode)}
+                          className={`p-1 text-xs font-bold transition-all duration-200 ${
+                            animationMode === mode
+                              ? 'bg-purple-600 text-white'
+                              : 'bg-gray-800 text-gray-300'
+                          }`}
+                        >
+                          {mode.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            
             {selectedElement && (
               <div className="mt-4 p-3 bg-yellow-900/20 border border-yellow-500 rounded">
                 <div className="text-xs font-bold text-yellow-400 mb-2">EDITING: {selectedElement.name}</div>
@@ -1101,6 +1152,132 @@ export default function CollageCreator() {
                     </div>
                   )}
                 </div>
+                
+                {/* Mobile Animated Overlay */}
+                {isAnimating && animationGrid.length > 0 && (
+                  <div className="absolute inset-0 pointer-events-none">
+                    {animationGrid.map((square, index) => {
+                      // Calculate wave position for syncopated effects
+                      const wavePosition = (square.x + square.y * 2 + Date.now() / 500) % 20
+                      const isInWave = wavePosition < 10
+                      
+                      // Intensity affects size and brightness
+                      const intensityScale = 0.5 + (animationIntensity / 100) * 0.5
+                      const intensityBrightness = 0.3 + (animationIntensity / 100) * 0.7
+                      
+                      // Mode-specific styles
+                      let modeStyles: React.CSSProperties = {}
+                      
+                      if (animationMode === 'strobe') {
+                        // Strobe mode - rapid flashing
+                        modeStyles = {
+                          animation: `pixelStrobe ${0.1 + square.delay * 0.2}s infinite`,
+                          filter: `brightness(${intensityBrightness * 2})`
+                        }
+                      } else if (animationMode === 'rainbow') {
+                        // Rainbow mode - hue rotation
+                        const hueShift = (square.x * 20 + square.y * 20 + Date.now() / 20) % 360
+                        modeStyles = {
+                          filter: `hue-rotate(${hueShift}deg) brightness(${intensityBrightness * 1.5})`,
+                          animation: `pixelRainbow ${square.duration}s ${square.delay}s infinite alternate ease-in-out`
+                        }
+                      } else {
+                        // Wave mode - original with intensity
+                        modeStyles = {
+                          animation: `pixelWave ${square.duration}s ${square.delay}s infinite alternate ease-in-out, pixelFloat ${square.duration * 1.5}s ${square.delay * 0.5}s infinite alternate ease-in-out`,
+                          filter: `brightness(${isInWave ? intensityBrightness * 1.5 : intensityBrightness})`,
+                          transform: `translate(-50%, -50%) scale(${isInWave ? intensityScale * 1.2 : intensityScale})`
+                        }
+                      }
+                      
+                      return (
+                        <div
+                          key={`pixel-${square.x}-${square.y}`}
+                          className="absolute"
+                          style={{
+                            left: `${(square.x / 20) * 100}%`,
+                            top: `${(square.y / 20) * 100}%`,
+                            width: '5%',
+                            height: '5%',
+                            backgroundColor: square.color,
+                            borderRadius: '15%',
+                            boxShadow: `0 0 ${8 + intensityScale * 12}px rgba(255, 255, 255, ${intensityBrightness * 0.5})`,
+                            ...modeStyles
+                          }}
+                        />
+                      )
+                    })}
+                    
+                    {/* CSS Animations */}
+                    <style dangerouslySetInnerHTML={{ __html: `
+                      @keyframes pixelWave {
+                        0% {
+                          transform: translate(-50%, -50%) scale(0.8) rotate(0deg);
+                          opacity: 0.7;
+                        }
+                        25% {
+                          transform: translate(-50%, -50%) scale(1.1) rotate(5deg);
+                          opacity: 0.9;
+                        }
+                        50% {
+                          transform: translate(-50%, -50%) scale(0.9) rotate(-5deg);
+                          opacity: 0.6;
+                        }
+                        75% {
+                          transform: translate(-50%, -50%) scale(1.2) rotate(3deg);
+                          opacity: 0.8;
+                        }
+                        100% {
+                          transform: translate(-50%, -50%) scale(0.8) rotate(-3deg);
+                          opacity: 0.7;
+                        }
+                      }
+                      
+                      @keyframes pixelFloat {
+                        0% {
+                          transform: translate(-50%, -50%) translateX(0) translateY(0);
+                        }
+                        33% {
+                          transform: translate(-50%, -50%) translateX(3px) translateY(-2px);
+                        }
+                        66% {
+                          transform: translate(-50%, -50%) translateX(-2px) translateY(3px);
+                        }
+                        100% {
+                          transform: translate(-50%, -50%) translateX(0) translateY(0);
+                        }
+                      }
+                      
+                      @keyframes pixelStrobe {
+                        0%, 10% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+                        11%, 20% { opacity: 0.1; transform: translate(-50%, -50%) scale(0.8); }
+                        21%, 30% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+                        31%, 40% { opacity: 0.2; transform: translate(-50%, -50%) scale(0.9); }
+                        41%, 50% { opacity: 1; transform: translate(-50%, -50%) scale(1.3); }
+                        51%, 60% { opacity: 0.1; transform: translate(-50%, -50%) scale(0.7); }
+                        61%, 70% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+                        71%, 80% { opacity: 0.3; transform: translate(-50%, -50%) scale(0.8); }
+                        81%, 90% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+                        91%, 100% { opacity: 0.2; transform: translate(-50%, -50%) scale(0.9); }
+                      }
+                      
+                      @keyframes pixelRainbow {
+                        0% {
+                          transform: translate(-50%, -50%) scale(0.9) rotate(0deg);
+                          filter: hue-rotate(0deg) saturate(1.5);
+                        }
+                        50% {
+                          transform: translate(-50%, -50%) scale(1.2) rotate(180deg);
+                          filter: hue-rotate(180deg) saturate(2);
+                        }
+                        100% {
+                          transform: translate(-50%, -50%) scale(0.9) rotate(360deg);
+                          filter: hue-rotate(360deg) saturate(1.5);
+                        }
+                      }
+                    `}} />
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1170,17 +1347,55 @@ export default function CollageCreator() {
 
               {/* ADD: Pixel Wave Button */}
               {collageElements.length > 0 && (
-                <button
-                  onClick={toggleAnimation}
-                  className={`w-full p-3 text-sm font-bold transition-all duration-300 flex items-center justify-center gap-2 ${
-                    isAnimating 
-                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 animate-pulse' 
-                      : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:shadow-2xl hover:scale-105 transform'
-                  }`}
-                >
-                  <Waves size={16} />
-                  {isAnimating ? 'STOP PIXEL WAVE' : 'START PIXEL WAVE'}
-                </button>
+                <div className="space-y-3">
+                  <button
+                    onClick={toggleAnimation}
+                    className={`w-full p-3 text-sm font-bold transition-all duration-300 flex items-center justify-center gap-2 ${
+                      isAnimating 
+                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 animate-pulse' 
+                        : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:shadow-2xl hover:scale-105 transform'
+                    }`}
+                  >
+                    <Waves size={16} />
+                    {isAnimating ? 'STOP PIXEL WAVE' : 'START PIXEL WAVE'}
+                  </button>
+                  
+                  {isAnimating && (
+                    <div className="bg-purple-900/20 border border-purple-500 rounded p-3 space-y-3">
+                      <div>
+                        <label className="text-xs text-purple-400 font-bold">INTENSITY</label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={animationIntensity}
+                          onChange={(e) => setAnimationIntensity(parseInt(e.target.value))}
+                          className="w-full accent-purple-400"
+                        />
+                        <div className="text-xs text-gray-500 text-center">{animationIntensity}%</div>
+                      </div>
+                      
+                      <div>
+                        <label className="text-xs text-purple-400 font-bold mb-2 block">MODE</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {(['wave', 'strobe', 'rainbow'] as const).map(mode => (
+                            <button
+                              key={mode}
+                              onClick={() => setAnimationMode(mode)}
+                              className={`p-2 text-xs font-bold transition-all duration-200 ${
+                                animationMode === mode
+                                  ? 'bg-purple-600 text-white'
+                                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                              }`}
+                            >
+                              {mode.toUpperCase()}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* Element Library - COMPACT */}
@@ -1625,23 +1840,57 @@ export default function CollageCreator() {
                 {/* ADD: Animated Overlay */}
                 {isAnimating && animationGrid.length > 0 && (
                   <div className="absolute inset-0 pointer-events-none">
-                    {animationGrid.map((square, index) => (
-                      <div
-                        key={`pixel-${square.x}-${square.y}`}
-                        className="absolute"
-                        style={{
-                          left: `${(square.x / 20) * 100}%`,
-                          top: `${(square.y / 20) * 100}%`,
-                          width: '5%',
-                          height: '5%',
-                          backgroundColor: square.color,
+                    {animationGrid.map((square, index) => {
+                      // Calculate wave position for syncopated effects
+                      const wavePosition = (square.x + square.y * 2 + Date.now() / 500) % 20
+                      const isInWave = wavePosition < 10
+                      
+                      // Intensity affects size and brightness
+                      const intensityScale = 0.5 + (animationIntensity / 100) * 0.5
+                      const intensityBrightness = 0.3 + (animationIntensity / 100) * 0.7
+                      
+                      // Mode-specific styles
+                      let modeStyles: React.CSSProperties = {}
+                      
+                      if (animationMode === 'strobe') {
+                        // Strobe mode - rapid flashing
+                        modeStyles = {
+                          animation: `pixelStrobe ${0.1 + square.delay * 0.2}s infinite`,
+                          filter: `brightness(${intensityBrightness * 2})`
+                        }
+                      } else if (animationMode === 'rainbow') {
+                        // Rainbow mode - hue rotation
+                        const hueShift = (square.x * 20 + square.y * 20 + Date.now() / 20) % 360
+                        modeStyles = {
+                          filter: `hue-rotate(${hueShift}deg) brightness(${intensityBrightness * 1.5})`,
+                          animation: `pixelRainbow ${square.duration}s ${square.delay}s infinite alternate ease-in-out`
+                        }
+                      } else {
+                        // Wave mode - original with intensity
+                        modeStyles = {
                           animation: `pixelWave ${square.duration}s ${square.delay}s infinite alternate ease-in-out, pixelFloat ${square.duration * 1.5}s ${square.delay * 0.5}s infinite alternate ease-in-out`,
-                          transform: 'translate(-50%, -50%)',
-                          borderRadius: '15%',
-                          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
-                        }}
-                      />
-                    ))}
+                          filter: `brightness(${isInWave ? intensityBrightness * 1.5 : intensityBrightness})`,
+                          transform: `translate(-50%, -50%) scale(${isInWave ? intensityScale * 1.2 : intensityScale})`
+                        }
+                      }
+                      
+                      return (
+                        <div
+                          key={`pixel-${square.x}-${square.y}`}
+                          className="absolute"
+                          style={{
+                            left: `${(square.x / 20) * 100}%`,
+                            top: `${(square.y / 20) * 100}%`,
+                            width: '5%',
+                            height: '5%',
+                            backgroundColor: square.color,
+                            borderRadius: '15%',
+                            boxShadow: `0 0 ${8 + intensityScale * 12}px rgba(255, 255, 255, ${intensityBrightness * 0.5})`,
+                            ...modeStyles
+                          }}
+                        />
+                      )
+                    })}
                     
                     {/* ADD: CSS Animations */}
                     <style dangerouslySetInnerHTML={{ __html: `
@@ -1680,6 +1929,34 @@ export default function CollageCreator() {
                         }
                         100% {
                           transform: translate(-50%, -50%) translateX(0) translateY(0);
+                        }
+                      }
+                      
+                      @keyframes pixelStrobe {
+                        0%, 10% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+                        11%, 20% { opacity: 0.1; transform: translate(-50%, -50%) scale(0.8); }
+                        21%, 30% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+                        31%, 40% { opacity: 0.2; transform: translate(-50%, -50%) scale(0.9); }
+                        41%, 50% { opacity: 1; transform: translate(-50%, -50%) scale(1.3); }
+                        51%, 60% { opacity: 0.1; transform: translate(-50%, -50%) scale(0.7); }
+                        61%, 70% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+                        71%, 80% { opacity: 0.3; transform: translate(-50%, -50%) scale(0.8); }
+                        81%, 90% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+                        91%, 100% { opacity: 0.2; transform: translate(-50%, -50%) scale(0.9); }
+                      }
+                      
+                      @keyframes pixelRainbow {
+                        0% {
+                          transform: translate(-50%, -50%) scale(0.9) rotate(0deg);
+                          filter: hue-rotate(0deg) saturate(1.5);
+                        }
+                        50% {
+                          transform: translate(-50%, -50%) scale(1.2) rotate(180deg);
+                          filter: hue-rotate(180deg) saturate(2);
+                        }
+                        100% {
+                          transform: translate(-50%, -50%) scale(0.9) rotate(360deg);
+                          filter: hue-rotate(360deg) saturate(1.5);
                         }
                       }
                     `}} />
