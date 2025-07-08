@@ -3,17 +3,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { dbHelpers } from '@/lib/supabase'
 import { Element, CollageElement, SavedCollage } from '@/lib/types'
-import { Download, Save, Shuffle, Loader2, Sparkles, Trash2, RotateCcw, Move, Plus, FolderOpen, Waves } from 'lucide-react'
+import { Download, Save, Shuffle, Loader2, Sparkles, Trash2, RotateCcw, Move, Plus, FolderOpen } from 'lucide-react'
 import html2canvas from 'html2canvas'
-
-// ADD: Animation types
-type AnimationSquare = {
-  x: number
-  y: number
-  color: string
-  delay: number
-  duration: number
-}
 
 export default function CollageCreator() {
   const [isGenerating, setIsGenerating] = useState(false)
@@ -26,10 +17,6 @@ export default function CollageCreator() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [inspirationMode, setInspirationMode] = useState<'minimal' | 'mid' | 'high'>('mid')
   const [isMobile, setIsMobile] = useState(false)
-  
-  // ADD: Animation state
-  const [isAnimating, setIsAnimating] = useState(false)
-  const [animationGrid, setAnimationGrid] = useState<AnimationSquare[]>([])
   
   // OPTIMIZED: Smaller initial batches for faster category switching
   const [visibleElementsCount, setVisibleElementsCount] = useState(24)
@@ -117,87 +104,6 @@ export default function CollageCreator() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedElement])
-
-  // ADD: Generate animation grid when toggled
-  useEffect(() => {
-    if (isAnimating && animationGrid.length === 0 && canvasRef.current) {
-      generateAnimationGrid()
-    }
-  }, [isAnimating])
-
-  // ADD: Generate color grid for animation
-  const generateAnimationGrid = async () => {
-    if (!canvasRef.current) return
-    
-    console.log('🎨 Generating animation grid...')
-    
-    try {
-      const canvas = await html2canvas(canvasRef.current, {
-        backgroundColor: '#ffffff',
-        scale: 1,
-        useCORS: true,
-        allowTaint: true,
-        logging: false
-      })
-      
-      const ctx = canvas.getContext('2d')
-      if (!ctx) return
-      
-      const gridSize = 20 // 20x20 grid
-      const cellWidth = canvas.width / gridSize
-      const cellHeight = canvas.height / gridSize
-      
-      const squares: AnimationSquare[] = []
-      
-      for (let row = 0; row < gridSize; row++) {
-        for (let col = 0; col < gridSize; col++) {
-          // Sample color from center of each cell
-          const x = col * cellWidth + cellWidth / 2
-          const y = row * cellHeight + cellHeight / 2
-          
-          const imageData = ctx.getImageData(x, y, 1, 1)
-          const pixelData = imageData.data
-          const r = pixelData[0]
-          const g = pixelData[1]
-          const b = pixelData[2]
-          const color = `rgb(${r}, ${g}, ${b})`
-          
-          // Create syncopated delays based on position
-          const delay = (row * 0.05 + col * 0.03 + Math.random() * 0.2) % 2
-          const duration = 2 + Math.random() * 2 // 2-4 seconds
-          
-          squares.push({
-            x: col,
-            y: row,
-            color,
-            delay,
-            duration
-          })
-        }
-      }
-      
-      console.log(`✅ Generated ${squares.length} animation squares`)
-      setAnimationGrid(squares)
-      
-    } catch (error) {
-      console.error('Error generating animation grid:', error)
-    }
-  }
-
-  // ADD: Toggle animation
-  const toggleAnimation = () => {
-    if (!isAnimating && collageElements.length === 0) {
-      alert('Create a collage first!')
-      return
-    }
-    
-    setIsAnimating(!isAnimating)
-    
-    if (isAnimating) {
-      // Clear grid when stopping
-      setAnimationGrid([])
-    }
-  }
 
   // PIXEL-PERFECT: Check if click coordinates hit actual image content
   const checkPixelHit = async (imgElement: HTMLImageElement, clickX: number, clickY: number, displayWidth: number, displayHeight: number): Promise<boolean> => {
@@ -1168,21 +1074,6 @@ export default function CollageCreator() {
                 </p>
               </div>
 
-              {/* ADD: Pixel Wave Button */}
-              {collageElements.length > 0 && (
-                <button
-                  onClick={toggleAnimation}
-                  className={`w-full p-3 text-sm font-bold transition-all duration-300 flex items-center justify-center gap-2 ${
-                    isAnimating 
-                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 animate-pulse' 
-                      : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:shadow-2xl hover:scale-105 transform'
-                  }`}
-                >
-                  <Waves size={16} />
-                  {isAnimating ? 'STOP PIXEL WAVE' : 'START PIXEL WAVE'}
-                </button>
-              )}
-
               {/* Element Library - COMPACT */}
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-3">
@@ -1621,194 +1512,11 @@ export default function CollageCreator() {
                     </div>
                   )}
                 </div>
-                
-                {/* ADD: Animated Overlay */}
-                {isAnimating && animationGrid.length > 0 && (
-                  <div className="absolute inset-0 pointer-events-none">
-                    {animationGrid.map((square, index) => (
-                      <div
-                        key={`pixel-${square.x}-${square.y}`}
-                        className="absolute"
-                        style={{
-                          left: `${(square.x / 20) * 100}%`,
-                          top: `${(square.y / 20) * 100}%`,
-                          width: '5%',
-                          height: '5%',
-                          backgroundColor: square.color,
-                          animation: `pixelWave ${square.duration}s ${square.delay}s infinite alternate ease-in-out, pixelFloat ${square.duration * 1.5}s ${square.delay * 0.5}s infinite alternate ease-in-out`,
-                          transform: 'translate(-50%, -50%)',
-                          borderRadius: '15%',
-                          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
-                        }}
-                      />
-                    ))}
-                    
-                    {/* ADD: CSS Animations */}
-                    <style jsx>{`
-                      @keyframes pixelWave {
-                        0% {
-                          transform: translate(-50%, -50%) scale(0.8) rotate(0deg);
-                          opacity: 0.7;
-                        }
-                        25% {
-                          transform: translate(-50%, -50%) scale(1.1) rotate(5deg);
-                          opacity: 0.9;
-                        }
-                        50% {
-                          transform: translate(-50%, -50%) scale(0.9) rotate(-5deg);
-                          opacity: 0.6;
-                        }
-                        75% {
-                          transform: translate(-50%, -50%) scale(1.2) rotate(3deg);
-                          opacity: 0.8;
-                        }
-                        100% {
-                          transform: translate(-50%, -50%) scale(0.8) rotate(-3deg);
-                          opacity: 0.7;
-                        }
-                      }
-                      
-                      @keyframes pixelFloat {
-                        0% {
-                          transform: translate(-50%, -50%) translateX(0) translateY(0);
-                        }
-                        33% {
-                          transform: translate(-50%, -50%) translateX(3px) translateY(-2px);
-                        }
-                        66% {
-                          transform: translate(-50%, -50%) translateX(-2px) translateY(3px);
-                        }
-                        100% {
-                          transform: translate(-50%, -50%) translateX(0) translateY(0);
-                        }
-                      }
-                    `}</style>
-                  </div>
-                )}
               </div>
             </div>
           </div>
         </>
       )}
-    </div>
-  )
-}'use client'
-
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { dbHelpers } from '@/lib/supabase'
-import { Element, CollageElement, SavedCollage } from '@/lib/types'
-import { Download, Save, Shuffle, Loader2, Sparkles, Trash2, RotateCcw, Move, Plus, FolderOpen, Waves } from 'lucide-react'
-import html2canvas from 'html2canvas'
-
-// Animation types
-type AnimationSquare = {
-  x: number
-  y: number
-  color: string
-  delay: number
-  duration: number
-}
-
-export default function CollageCreator() {
-  // Core state
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-  const [isExporting, setIsExporting] = useState(false)
-  const [collageElements, setCollageElements] = useState<CollageElement[]>([])
-  const [selectedElementId, setSelectedElementId] = useState<string | null>(null)
-  const [availableElements, setAvailableElements] = useState<Element[]>([])
-  const [categories, setCategories] = useState<string[]>([])
-  const [selectedCategory, setSelectedCategory] = useState<string>('all')
-  const [inspirationMode, setInspirationMode] = useState<'minimal' | 'mid' | 'high'>('mid')
-  const [isMobile, setIsMobile] = useState(false)
-  
-  // Animation state
-  const [isAnimating, setIsAnimating] = useState(false)
-  const [animationGrid, setAnimationGrid] = useState<AnimationSquare[]>([])
-  const [animationIntensity, setAnimationIntensity] = useState(50)
-  const [animationSpeed, setAnimationSpeed] = useState(50)
-  const [animationMode, setAnimationMode] = useState<'wave' | 'pixelate' | 'rainbow'>('wave')
-  
-  // Loading state
-  const [visibleElementsCount, setVisibleElementsCount] = useState(24)
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const [totalElementCount, setTotalElementCount] = useState(0)
-  
-  // Canvas state
-  const [zoom, setZoom] = useState(1)
-  const [pan, setPan] = useState({ x: 0, y: 0 })
-  const [isDragging, setIsDragging] = useState(false)
-  const [draggedElement, setDraggedElement] = useState<Element | null>(null)
-  const [draggedCanvasElement, setDraggedCanvasElement] = useState<CollageElement | null>(null)
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
-  const canvasRef = useRef<HTMLDivElement>(null)
-
-  // Compute selected element
-  const selectedElement = selectedElementId 
-    ? collageElements.find(el => `${el.id}-${el.x}-${el.y}` === selectedElementId)
-    : null
-
-  // Filter elements
-  const filteredElements = useMemo(() => {
-    if (selectedCategory === 'all') return availableElements
-    return availableElements.filter(el => el.category === selectedCategory)
-  }, [availableElements, selectedCategory])
-
-  // Effects
-  useEffect(() => {
-    loadElements()
-    
-    const checkMobile = () => {
-      const mobile = window.innerWidth < 1024
-      setIsMobile(mobile)
-      setVisibleElementsCount(mobile ? 18 : 24)
-    }
-    
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
-  }, [])
-
-  // Load elements
-  const loadElements = async () => {
-    try {
-      const allElements = await dbHelpers.getAllElements()
-      setAvailableElements(allElements)
-      setTotalElementCount(allElements.length)
-      
-      const allCategories = Array.from(new Set(allElements.map(el => el.category))).sort()
-      setCategories(allCategories)
-    } catch (error) {
-      console.error('Error loading elements:', error)
-    }
-  }
-
-  // Simple generation for testing
-  const generateInspiration = () => {
-    setIsGenerating(true)
-    setTimeout(() => {
-      setIsGenerating(false)
-      alert('Generation complete!')
-    }, 1000)
-  }
-
-  // Render
-  return (
-    <div className="min-h-screen bg-black text-white">
-      <div className="p-8">
-        <h1 className="text-2xl font-bold mb-4">Collage Creator Test</h1>
-        <button
-          onClick={generateInspiration}
-          className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"
-          disabled={isGenerating}
-        >
-          {isGenerating ? 'Generating...' : 'Generate'}
-        </button>
-        <div className="mt-4">
-          <p>Elements loaded: {availableElements.length}</p>
-          <p>Categories: {categories.length}</p>
-        </div>
-      </div>
     </div>
   )
 }
